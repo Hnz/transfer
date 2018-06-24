@@ -7,28 +7,33 @@ package main
 
 import (
 	"archive/tar"
-	"bufio"
-	"compress/gzip"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const Version = "0.0.1"
 
 // Config specifies configuration options
 type Config struct {
-	Compress bool `json:"compress"`
-	Encrypt  bool `json:"encrypt"`
+	Cert     string `json:"cert"`
+	DestDir  string `json:"destdir"`
+	Host     string `json:"host"`
+	Key      string `json:"key"`
+	Port     int    `json:"port"`
+	Compress bool   `json:"compress"`
+	Encrypt  bool   `json:"encrypt"`
 }
 
 var configfile string
@@ -53,17 +58,20 @@ func main() {
 		cmdGet()
 	case "put":
 		cmdPut()
+	case "server":
+		cmdServer()
 	default:
 		printHelp()
 	}
 }
 
 func printHelp() {
-	u := `Key Value Store %s
+	u := `GoTransfer %s
 
 Usage:
   gotransfer get [options]
   gotransfer put [options] <files...>
+  gotransfer server [options]
   gotransfer -h | --help
 
 Options:
@@ -87,6 +95,10 @@ Options:
 
 	conf := Config{}
 
+	flag.BoolVar(&conf.Compress, "c", true, "compress")
+	flag.BoolVar(&conf.Encrypt, "e", true, "Encrypt")
+	flag.StringVar(&conf.DestDir, "d", ".", "Destination directory")
+
 	parse(&conf)
 
 	args := flag.Args()
@@ -96,10 +108,10 @@ Options:
 		flag.Usage()
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		fmt.Println("> " + scanner.Text())
-	}
+	r, err := http.Get(args[0])
+	handleError(err)
+
+	Get(r.Body, conf)
 }
 
 func cmdPut() {
@@ -127,42 +139,52 @@ Options:
 		flag.Usage()
 	}
 
-	var out io.WriteCloser
-	out = os.Stdout
+	var w io.WriteCloser
+	r, w := io.Pipe()
 
-	if conf.Encrypt {
-		// Ask for password
-		var password string
-		fmt.Print("Enter password: ")
-		fmt.Scanln(&password)
-		key := sha256.Sum256([]byte(password))
-		fmt.Println(key)
+	go Put(w, conf, args)
 
-		// TODO: Make iv random
-		iv := make([]byte, aes.BlockSize)
-		io.ReadFull(rand.Reader, iv)
+	fmt.Println(Upload("https://transfer.sh/MYFILE", r))
+}
 
-		block, err := aes.NewCipher(key[:])
-		handleError(err)
-		stream := cipher.NewOFB(block, iv[:])
-		out = cipher.StreamWriter{S: stream, W: out}
-		defer out.Close()
+func cmdServer() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage:\n  %s server [options]\n\nOptions:\n", os.Args[0])
+		flag.PrintDefaults()
 	}
 
-	if conf.Compress {
-		out = gzip.NewWriter(out)
-		defer out.Close()
+	conf := Config{}
+
+	hostname, _ := os.Hostname()
+
+	flag.StringVar(&conf.Cert, "cert", "", "path to PEM-encoded certificate file.")
+	flag.StringVar(&conf.Key, "key", "", "path to PEM-encoded private key file.")
+	flag.StringVar(&conf.Host, "host", hostname, "Host to listen on.")
+	flag.IntVar(&conf.Port, "port", 1234, "Port to listen on.")
+
+	parse(&conf)
+
+	address := fmt.Sprintf("%s:%d", conf.Host, conf.Port)
+	httpserver := &http.Server{
+		Addr:    address,
+		Handler: httphandler{},
 	}
 
-	tw := tar.NewWriter(out)
-	defer tw.Close()
-
-	for _, f := range args {
-		err := add(tw, f)
-		if err != nil {
-			handleError(err)
-		}
+	if conf.Cert == "" {
+		log.Println("Listening on http://" + address)
+		log.Fatal(httpserver.ListenAndServe())
 	}
+
+	if conf.Key == "" {
+		conf.Key = conf.Cert
+	}
+
+	httpserver.TLSConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	log.Println("Listening on https://" + address)
+	log.Fatal(httpserver.ListenAndServeTLS(conf.Cert, conf.Key))
 }
 
 func parse(conf *Config) {
@@ -204,7 +226,9 @@ func add(tw *tar.Writer, src string) error {
 
 		// write the header
 		err = tw.WriteHeader(header)
-		handleError(err)
+		if err != nil {
+			return err
+		}
 
 		// return on non-regular files (thanks to [kumo](https://medium.com/@komuw/just-like-you-did-fbdd7df829d3) for this suggested update)
 		if !fi.Mode().IsRegular() {
@@ -214,7 +238,9 @@ func add(tw *tar.Writer, src string) error {
 		// open files for taring
 		f, err := os.Open(file)
 		defer f.Close()
-		handleError(err)
+		if err != nil {
+			return err
+		}
 
 		// copy file data into tar writer
 		if _, err := io.Copy(tw, f); err != nil {
@@ -223,4 +249,13 @@ func add(tw *tar.Writer, src string) error {
 
 		return nil
 	})
+}
+
+// Ask for password and hash it to create the key
+func getKey() [32]byte {
+	fmt.Print("Enter password: ")
+	password, err := terminal.ReadPassword(int(syscall.Stdin))
+	fmt.Print("\n")
+	handleError(err)
+	return sha256.Sum256(password)
 }

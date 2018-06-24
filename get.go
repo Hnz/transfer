@@ -2,7 +2,6 @@
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 
-// Package gotransfer implements a Distributed Key-Value Store
 package main
 
 import (
@@ -10,6 +9,8 @@ import (
 	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,11 +19,16 @@ import (
 
 func Get(r io.Reader, conf Config) {
 
+	// Read header
+	var header Header
+	binary.Read(r, binary.LittleEndian, &header)
+	fmt.Println("HEADER", header)
+
 	if conf.Encrypt {
 		// First read the IV from the stream
 		iv := make([]byte, aes.BlockSize)
-		//io.ReadFull(r, iv)
-		r.Read(iv)
+		io.ReadFull(r, iv)
+		//r.Read(iv)
 		fmt.Println(iv)
 		key := getKey()
 
@@ -41,7 +47,8 @@ func Get(r io.Reader, conf Config) {
 
 	tr := tar.NewReader(r)
 
-	Unpack(tr, conf.DestDir)
+	err := Unpack(tr, conf.DestDir)
+	handleError(err)
 }
 
 func Unpack(tr *tar.Reader, dest string) error {
@@ -59,14 +66,13 @@ func Unpack(tr *tar.Reader, dest string) error {
 		case err != nil:
 			return err
 
-		// if the header is nil, just skip it (not sure how this happens)
 		case header == nil:
-			continue
+			return errors.New("Unable to read header")
 		}
 
 		// the target location where the dir/file should be created
 		target := filepath.Join(dest, header.Name)
-		fmt.Println(target)
+		fmt.Println("<", target)
 		// the following switch could also be done using fi.Mode(), not sure if there
 		// a benefit of using one vs. the other.
 		// fi := header.FileInfo()
@@ -96,6 +102,4 @@ func Unpack(tr *tar.Reader, dest string) error {
 			}
 		}
 	}
-
-	return nil
 }

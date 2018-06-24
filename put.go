@@ -1,3 +1,7 @@
+// Copyright 2018 Hans van Leeuwen. All rights reserved.
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -6,17 +10,21 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
+	"os"
+	"path/filepath"
 )
 
-func Put(w io.WriteCloser, conf Config, files []string) {
+func Put(w io.Writer, conf Config, files []string) {
 
-	defer w.Close()
+	var header Header
 
 	if conf.Encrypt {
+		// Update header
+		header |= AES256
+
 		// Make random IV and write it to the output buffer
 		iv := make([]byte, aes.BlockSize)
 		io.ReadFull(rand.Reader, iv)
@@ -31,13 +39,21 @@ func Put(w io.WriteCloser, conf Config, files []string) {
 		handleError(err)
 		stream := cipher.NewOFB(block, iv[:])
 		w = cipher.StreamWriter{S: stream, W: w}
-		defer w.Close()
+		//defer w.Close()
 	}
 
 	if conf.Compress {
+		// Update header
+		header |= GZIP
+
 		w = gzip.NewWriter(w)
-		defer w.Close()
+		//defer w.Close()
 	}
+
+	// Write header
+	header |= TAR
+	fmt.Println("Header", header, header.HasFlag(TAR))
+	binary.Write(w, binary.LittleEndian, header)
 
 	tw := tar.NewWriter(w)
 	defer tw.Close()
@@ -48,22 +64,57 @@ func Put(w io.WriteCloser, conf Config, files []string) {
 	}
 }
 
-func Upload(url string, r io.ReadCloser) string {
+// Tar takes a source and variable writers and walks 'source' writing each file
+// found to the tar writer
+func Tar(files []string, writer io.Writer) error {
 
-	// Make http request
-	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodPut, url, r)
-	handleError(err)
+	tw := tar.NewWriter(writer)
+	defer tw.Close()
 
-	//req.Header.Set("Content-Encoding", "identity")
+	for _, f := range files {
+		err := add(tw, f)
+		if err != nil {
+			return err
+		}
+	}
 
-	// Get http response
-	res, err := client.Do(req)
-	handleError(err)
-	defer res.Body.Close()
+	return nil
+}
 
-	// Output response body
-	body, err := ioutil.ReadAll(res.Body)
-	handleError(err)
-	return string(body)
+func add(tw *tar.Writer, src string) error {
+	// walk path
+	return filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
+
+		handleError(err)
+
+		// create a new dir/file header
+		header, err := tar.FileInfoHeader(fi, fi.Name())
+		handleError(err)
+		fmt.Println("<", header.Name)
+
+		// write the header
+		err = tw.WriteHeader(header)
+		if err != nil {
+			return err
+		}
+
+		// return on non-regular files (thanks to [kumo](https://medium.com/@komuw/just-like-you-did-fbdd7df829d3) for this suggested update)
+		if !fi.Mode().IsRegular() {
+			return nil
+		}
+
+		// open files for taring
+		f, err := os.Open(file)
+		defer f.Close()
+		if err != nil {
+			return err
+		}
+
+		// copy file data into tar writer
+		if _, err := io.Copy(tw, f); err != nil {
+			return err
+		}
+
+		return nil
+	})
 }

@@ -22,6 +22,7 @@ func Get(r io.Reader, conf Config) {
 	// Read header
 	var header Header
 	binary.Read(r, binary.LittleEndian, &header)
+
 	fmt.Println("HEADER", header)
 
 	if conf.Encrypt {

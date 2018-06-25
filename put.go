@@ -17,9 +17,10 @@ import (
 	"path/filepath"
 )
 
-func Put(w io.Writer, conf Config, files []string) {
+func Put(w io.WriteCloser, conf Config, files []string) {
 
 	var header Header
+	defer w.Close()
 
 	if conf.Encrypt {
 		// Update header
@@ -39,7 +40,7 @@ func Put(w io.Writer, conf Config, files []string) {
 		handleError(err)
 		stream := cipher.NewOFB(block, iv[:])
 		w = cipher.StreamWriter{S: stream, W: w}
-		//defer w.Close()
+		defer w.Close()
 	}
 
 	if conf.Compress {
@@ -47,7 +48,7 @@ func Put(w io.Writer, conf Config, files []string) {
 		header |= GZIP
 
 		w = gzip.NewWriter(w)
-		//defer w.Close()
+		defer w.Close()
 	}
 
 	// Write header

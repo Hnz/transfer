@@ -108,3 +108,15 @@ func Unpack(tr *tar.Reader, dest string) error {
 func WrapReaderGzip(r io.ReadCloser) (io.ReadCloser, error) {
 	return gzip.NewReader(r)
 }
+
+func WrapReaderAES256(r io.Reader, key [32]byte) io.Reader {
+	// First read the IV from the stream
+	iv := make([]byte, aes.BlockSize)
+	io.ReadFull(r, iv)
+
+	// Create reader
+	block, err := aes.NewCipher(key[:])
+	handleError(err)
+	stream := cipher.NewOFB(block, iv[:])
+	return cipher.StreamReader{S: stream, R: r}
+}

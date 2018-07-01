@@ -2,9 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
@@ -33,20 +30,7 @@ func TestAes256(t *testing.T) {
 	w = f
 	handleError(err)
 
-	// Update header
-	var header Header
-	header.AddFlag(AES256)
-
-	// Make random IV and write it to the output buffer
-	iv := make([]byte, aes.BlockSize)
-	io.ReadFull(rand.Reader, iv)
-	w.Write(iv)
-
-	// Create writer
-	block, err := aes.NewCipher(key[:])
-	handleError(err)
-	stream := cipher.NewOFB(block, iv[:])
-	w = cipher.StreamWriter{S: stream, W: w}
+	w = WrapWriterAes256(w, key)
 
 	_, err = w.Write(in)
 	handleError(err)
@@ -56,22 +40,8 @@ func TestAes256(t *testing.T) {
 	handleError(err)
 	defer f.Close()
 
-	// First read the IV from the stream
-	ivx := make([]byte, aes.BlockSize)
-	io.ReadFull(r, ivx)
-	if string(iv) != string(ivx) {
-		log.Fatalf("IV input is different from output.\nIn:  %s\nOut: %s\n", iv, ivx)
-	}
-
-	// Create reader
-	block, err = aes.NewCipher(key[:])
-	handleError(err)
-	stream = cipher.NewOFB(block, iv[:])
-	r = cipher.StreamReader{S: stream, R: r}
-
+	r = WrapReaderAES256(r, key)
 	out, err := ioutil.ReadAll(r)
-
-	fmt.Println(string(out))
 
 	if string(in) != string(out) {
 		log.Fatalf("Input is different from output.\nIn:  %s\nOut: %s\n", in, out)
@@ -109,8 +79,6 @@ func TestGzip(t *testing.T) {
 	handleError(err)
 
 	out, err := ioutil.ReadAll(r)
-
-	fmt.Println(string(out))
 
 	if string(in) != string(out) {
 		log.Fatalf("Input is different from output.\nIn:  %s\nOut: %s\n", in, out)

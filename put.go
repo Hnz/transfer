@@ -123,3 +123,17 @@ func add(tw *tar.Writer, src string) error {
 func WrapWriterGzip(w io.WriteCloser) io.WriteCloser {
 	return gzip.NewWriter(w)
 }
+
+func WrapWriterAes256(w io.WriteCloser, key [32]byte) io.WriteCloser {
+
+	// Make random IV and write it to the output buffer
+	iv := make([]byte, aes.BlockSize)
+	io.ReadFull(rand.Reader, iv)
+	w.Write(iv)
+
+	// Create writer
+	block, err := aes.NewCipher(key[:])
+	handleError(err)
+	stream := cipher.NewOFB(block, iv[:])
+	return cipher.StreamWriter{S: stream, W: w}
+}

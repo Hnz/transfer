@@ -26,17 +26,18 @@ import (
 // Version is the version of the application
 const Version = "0.1.0"
 
+// Salt is added to the password when hashing it
+const Salt = "WGL4xaNR5mOZCmznamuxLIYNXja4uF7N"
+
 // Config specifies configuration options
 type Config struct {
-	Cert         string   `json:"cert"`
-	Compress     bool     `json:"compress"`
-	DestDir      string   `json:"destdir"`
-	Encrypt      bool     `json:"encrypt"`
-	Host         string   `json:"host"`
-	Key          [32]byte `json:"key"`
-	MaxDownloads int      `json:"maxdownloads"`
-	MaxDays      int      `json:"maxdays"`
-	Port         int      `json:"port"`
+	Compress bool   `json:"compress"`
+	DestDir  string `json:"destdir"`
+	Encrypt  bool   `json:"encrypt"`
+	//Key          [32]byte `json:"key"`
+	MaxDownloads int    `json:"maxdownloads"`
+	MaxDays      int    `json:"maxdays"`
+	Password     string `json:"password"`
 }
 
 var config Config
@@ -112,14 +113,10 @@ Options:
 		flag.Usage()
 	}
 
-	if config.Encrypt {
-		config.Key = getKey()
-	}
-
 	r, err := http.Get(args[0])
 	handleError(err)
 
-	Get(r.Body, config)
+	Get(r.Body, config, getPassword)
 }
 
 func cmdPut() {
@@ -146,12 +143,10 @@ Options:
 		flag.Usage()
 	}
 
-	config.Key = getKey()
-
 	var w io.WriteCloser
 	r, w := io.Pipe()
 
-	go Put(w, config, args)
+	go Put(w, config, getPassword, args)
 
 	// Make http request
 	client := &http.Client{}
@@ -195,10 +190,17 @@ func handleError(err error) {
 }
 
 // Ask for password and hash it to create the key
-func getKey() [32]byte {
+func getPassword() []byte {
 	fmt.Print("Enter password: ")
 	password, err := terminal.ReadPassword(int(syscall.Stdin))
 	fmt.Print("\n")
 	handleError(err)
-	return sha256.Sum256(password)
+	return password
+}
+
+func passwordToKey(password []byte) []byte {
+	h := sha256.New()
+	h.Write(password)
+	h.Write([]byte(Salt))
+	return h.Sum(nil)
 }

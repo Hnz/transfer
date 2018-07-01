@@ -2,9 +2,7 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -23,13 +21,12 @@ func TestAes256(t *testing.T) {
 	in := []byte("A long time ago in a galaxy far, far away...\n")
 
 	password := []byte("ThePassword")
-	key := sha256.Sum256(password)
 
 	f, err := ioutil.TempFile("", "transfer_go")
 	w = f
 	handleError(err)
 
-	w = WrapWriterAes256(w, key)
+	w = wrapWriterAES256(w, password)
 
 	_, err = w.Write(in)
 	handleError(err)
@@ -39,7 +36,7 @@ func TestAes256(t *testing.T) {
 	handleError(err)
 	defer f.Close()
 
-	r, err = WrapReaderAES256(r, key)
+	r, err = wrapReaderAES256(r, password)
 	handleError(err)
 
 	out, err := ioutil.ReadAll(r)
@@ -62,7 +59,7 @@ func TestGzip(t *testing.T) {
 	w = f
 	handleError(err)
 
-	w = WrapWriterGzip(w)
+	w = wrapWriterGzip(w)
 
 	_, err = w.Write(in)
 	handleError(err)
@@ -77,7 +74,7 @@ func TestGzip(t *testing.T) {
 	r = f
 	handleError(err)
 
-	r, err = WrapReaderGzip(r)
+	r, err = wrapReaderGzip(r)
 	handleError(err)
 
 	out, err := ioutil.ReadAll(r)
@@ -111,26 +108,27 @@ func TestPutGet(t *testing.T) {
 	handleError(err)
 	defer os.RemoveAll(dir)
 
-	password := []byte("ThePassword")
-	key := sha256.Sum256(password)
+	password := "ThePassword"
 
 	var conf = Config{
 		Compress: true,
 		Encrypt:  true,
-		Key:      key,
+		Password: password,
 		DestDir:  dir,
 	}
 
 	file := filepath.Join(dir, "archive")
 	f, err := os.OpenFile(file, os.O_CREATE, 0600)
 	handleError(err)
-	fmt.Println(f.Name())
-	Put(f, conf, files)
+
+	//fmt.Println(f.Name())
+
+	Put(f, conf, getTestPassword, files)
 	f.Close()
 
 	f, err = os.Open(file)
 	handleError(err)
-	Get(f, conf)
+	Get(f, conf, getTestPassword)
 	f.Close()
 
 	for _, file := range files {
@@ -155,4 +153,8 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
 		t.Fatalf("%s != %s", a, b)
 	}
+}
+
+func getTestPassword() []byte {
+	return []byte("Test Password")
 }

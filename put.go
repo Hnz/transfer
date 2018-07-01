@@ -11,13 +11,12 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 )
 
-func Put(w io.WriteCloser, conf Config, files []string) error {
+func Put(w io.WriteCloser, conf Config, passwordFunc func() []byte, files []string) error {
 
 	var header Header
 	o := w
@@ -36,12 +35,12 @@ func Put(w io.WriteCloser, conf Config, files []string) error {
 	binary.Write(o, binary.LittleEndian, header)
 
 	if header.HasFlag(AES256) {
-		w = WrapWriterAes256(w, conf.Key)
+		w = wrapWriterAES256(w, passwordFunc())
 		defer w.Close()
 	}
 
 	if header.HasFlag(GZIP) {
-		w = WrapWriterGzip(w)
+		w = wrapWriterGzip(w)
 		defer w.Close()
 	}
 
@@ -84,7 +83,7 @@ func add(tw *tar.Writer, src string) error {
 		// create a new dir/file header
 		header, err := tar.FileInfoHeader(fi, fi.Name())
 		handleError(err)
-		fmt.Println("<", header.Name)
+		//fmt.Println("<", header.Name)
 
 		// write the header
 		err = tw.WriteHeader(header)
@@ -105,27 +104,28 @@ func add(tw *tar.Writer, src string) error {
 		}
 
 		// copy file data into tar writer
-		if _, err := io.Copy(tw, f); err != nil {
-			return err
-		}
+		_, err = io.Copy(tw, f)
 
-		return nil
+		return err
 	})
 }
 
-func WrapWriterGzip(w io.WriteCloser) io.WriteCloser {
+func wrapWriterGzip(w io.WriteCloser) io.WriteCloser {
 	return gzip.NewWriter(w)
 }
 
-func WrapWriterAes256(w io.WriteCloser, key [32]byte) io.WriteCloser {
+func wrapWriterAES256(w io.WriteCloser, password []byte) io.WriteCloser {
 
 	// Make random IV and write it to the output buffer
 	iv := make([]byte, aes.BlockSize)
 	io.ReadFull(rand.Reader, iv)
 	w.Write(iv)
 
+	// Get key from password
+	key := passwordToKey(password)
+
 	// Create writer
-	block, err := aes.NewCipher(key[:])
+	block, err := aes.NewCipher(key)
 	handleError(err)
 	stream := cipher.NewOFB(block, iv[:])
 	return cipher.StreamWriter{S: stream, W: w}

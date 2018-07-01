@@ -11,13 +11,12 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 )
 
-func Get(r io.Reader, conf Config) error {
+func Get(r io.Reader, conf Config, passwordFunc func() []byte) error {
 
 	var err error
 
@@ -26,14 +25,14 @@ func Get(r io.Reader, conf Config) error {
 	binary.Read(r, binary.LittleEndian, &header)
 
 	if header.HasFlag(AES256) {
-		r, err = WrapReaderAES256(r, conf.Key)
+		r, err = wrapReaderAES256(r, passwordFunc())
 		if err != nil {
 			return err
 		}
 	}
 
 	if header.HasFlag(GZIP) {
-		r, err = WrapReaderGzip(r)
+		r, err = wrapReaderGzip(r)
 		if err != nil {
 			return err
 		}
@@ -65,10 +64,7 @@ func Unpack(tr *tar.Reader, dest string) error {
 
 		// the target location where the dir/file should be created
 		target := filepath.Join(dest, header.Name)
-		fmt.Println("<", target)
-		// the following switch could also be done using fi.Mode(), not sure if there
-		// a benefit of using one vs. the other.
-		// fi := header.FileInfo()
+		//fmt.Println(">", target)
 
 		// check the file type
 		switch header.Typeflag {
@@ -97,17 +93,20 @@ func Unpack(tr *tar.Reader, dest string) error {
 	}
 }
 
-func WrapReaderGzip(r io.Reader) (io.Reader, error) {
+func wrapReaderGzip(r io.Reader) (io.Reader, error) {
 	return gzip.NewReader(r)
 }
 
-func WrapReaderAES256(r io.Reader, key [32]byte) (io.Reader, error) {
+func wrapReaderAES256(r io.Reader, password []byte) (io.Reader, error) {
 	// First read the IV from the stream
 	iv := make([]byte, aes.BlockSize)
 	io.ReadFull(r, iv)
 
+	// Get key from password
+	key := passwordToKey(password)
+
 	// Create reader
-	block, err := aes.NewCipher(key[:])
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return r, err
 	}

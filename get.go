@@ -104,3 +104,7 @@ func Unpack(tr *tar.Reader, dest string) error {
 		}
 	}
 }
+
+func WrapReaderGzip(r io.ReadCloser) (io.ReadCloser, error) {
+	return gzip.NewReader(r)
+}

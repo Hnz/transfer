@@ -119,3 +119,7 @@ func add(tw *tar.Writer, src string) error {
 		return nil
 	})
 }
+
+func WrapWriterGzip(w io.WriteCloser) io.WriteCloser {
+	return gzip.NewWriter(w)
+}

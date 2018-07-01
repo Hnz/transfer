@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -16,29 +19,80 @@ import (
 
 var files = []string{"README.md", "LICENSE.md"}
 
-func TestX(t *testing.T) {
+func TestAes256(t *testing.T) {
 
-	var header Header
-	header.AddFlag(GZIP)
-
-	var r io.ReadCloser
+	var r io.Reader
 	var w io.WriteCloser
-	//var buf bytes.Buffer
+
+	in := []byte("A long time ago in a galaxy far, far away...\n")
+
+	password := []byte("ThePassword")
+	key := sha256.Sum256(password)
 
 	f, err := ioutil.TempFile("", "transfer_go")
 	w = f
 	handleError(err)
 
-	if header.HasFlag(GZIP) {
-		w = gzip.NewWriter(w)
+	// Update header
+	var header Header
+	header.AddFlag(AES256)
+
+	// Make random IV and write it to the output buffer
+	iv := make([]byte, aes.BlockSize)
+	io.ReadFull(rand.Reader, iv)
+	w.Write(iv)
+
+	// Create writer
+	block, err := aes.NewCipher(key[:])
+	handleError(err)
+	stream := cipher.NewOFB(block, iv[:])
+	w = cipher.StreamWriter{S: stream, W: w}
+
+	_, err = w.Write(in)
+	handleError(err)
+
+	f, err = os.Open(f.Name())
+	r = f
+	handleError(err)
+	defer f.Close()
+
+	// First read the IV from the stream
+	ivx := make([]byte, aes.BlockSize)
+	io.ReadFull(r, ivx)
+	if string(iv) != string(ivx) {
+		log.Fatalf("IV input is different from output.\nIn:  %s\nOut: %s\n", iv, ivx)
 	}
 
-	// Setting the Header fields is optional.
-	//zw.Name = "a-new-hope.txt"
-	//zw.Comment = "an epic space opera by George Lucas"
-	//zw.ModTime = time.Date(1977, time.May, 25, 0, 0, 0, 0, time.UTC)
+	// Create reader
+	block, err = aes.NewCipher(key[:])
+	handleError(err)
+	stream = cipher.NewOFB(block, iv[:])
+	r = cipher.StreamReader{S: stream, R: r}
 
-	_, err = w.Write([]byte("A long time ago in a galaxy far, far away...\n"))
+	out, err := ioutil.ReadAll(r)
+
+	fmt.Println(string(out))
+
+	if string(in) != string(out) {
+		log.Fatalf("Input is different from output.\nIn:  %s\nOut: %s\n", in, out)
+	}
+
+}
+
+func TestGzip(t *testing.T) {
+
+	var r io.ReadCloser
+	var w io.WriteCloser
+
+	in := []byte("A long time ago in a galaxy far, far away...\n")
+
+	f, err := ioutil.TempFile("", "transfer_go")
+	w = f
+	handleError(err)
+
+	w = WrapWriterGzip(w)
+
+	_, err = w.Write(in)
 	handleError(err)
 
 	err = w.Close()
@@ -48,17 +102,18 @@ func TestX(t *testing.T) {
 	handleError(err)
 
 	f, err = os.Open(f.Name())
+	r = f
 	handleError(err)
 
-	if header.HasFlag(GZIP) {
-		r, err = gzip.NewReader(f)
-		handleError(err)
-	}
+	r, err = WrapReaderGzip(r)
+	handleError(err)
 
-	//fmt.Printf("Name: %s\nComment: %s\nModTime: %s\n\n", zr.Name, zr.Comment, zr.ModTime.UTC())
+	out, err := ioutil.ReadAll(r)
 
-	if _, err := io.Copy(os.Stdout, r); err != nil {
-		log.Fatal(err)
+	fmt.Println(string(out))
+
+	if string(in) != string(out) {
+		log.Fatalf("Input is different from output.\nIn:  %s\nOut: %s\n", in, out)
 	}
 
 	if err := r.Close(); err != nil {

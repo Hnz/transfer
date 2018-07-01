@@ -15,6 +15,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strconv"
 	"syscall"
 
@@ -37,16 +39,23 @@ type Config struct {
 	Port         int      `json:"port"`
 }
 
+var config Config
 var configfile string
 
 func main() {
 
-	// Set flags that apply to all commands
-	flag.StringVar(&configfile, "c", "", "Path to a JSON-formatted config file. Options read "+
-		"from the config file will \n        overwrite options set on the commandline.")
+	usr, _ := user.Current()
+	configfile = filepath.Join(usr.HomeDir, ".transfer.conf")
 
 	if len(os.Args) < 2 {
 		printHelp()
+	}
+
+	// Read config file. Open file errors are ignored.
+	f, err := os.Open(configfile)
+	if err == nil {
+		err = json.NewDecoder(f).Decode(&config)
+		handleError(err)
 	}
 
 	command := os.Args[1]
@@ -71,10 +80,11 @@ Usage:
   %s get [options] <url>
   %s put [options] <files...>
   %s -h | --help
+  %s --version
 
-Options:
+  Config is read from %s
 `
-	fmt.Fprintf(os.Stderr, u, Version, os.Args[0], os.Args[0], os.Args[0])
+	fmt.Fprintf(os.Stderr, u, Version, os.Args[0], os.Args[0], os.Args[0], configfile)
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -91,27 +101,25 @@ Options:
 		os.Exit(2)
 	}
 
-	conf := Config{}
+	flag.BoolVar(&config.Compress, "z", true, "Decompress the content using gzip.")
+	flag.BoolVar(&config.Encrypt, "e", true, "Decrypt the content using AES256.")
+	flag.StringVar(&config.DestDir, "d", ".", "Destination directory.")
 
-	flag.BoolVar(&conf.Compress, "z", true, "Decompress the content using gzip.")
-	flag.BoolVar(&conf.Encrypt, "e", true, "Decrypt the content using AES256.")
-	flag.StringVar(&conf.DestDir, "d", ".", "Destination directory")
-
-	parse(&conf)
-
-	args := flag.Args()
+	args := parseArgs()
 
 	if len(args) != 1 {
 		fmt.Fprintln(os.Stderr, "Error: Incorrect number of arguments.")
 		flag.Usage()
 	}
 
-	conf.Key = getKey()
+	if config.Encrypt {
+		config.Key = getKey()
+	}
 
 	r, err := http.Get(args[0])
 	handleError(err)
 
-	Get(r.Body, conf)
+	Get(r.Body, config)
 }
 
 func cmdPut() {
@@ -126,27 +134,24 @@ Options:
 		os.Exit(2)
 	}
 
-	conf := Config{}
+	flag.BoolVar(&config.Compress, "z", true, "Compress the content using gzip.")
+	flag.BoolVar(&config.Encrypt, "e", true, "Encrypt the content using AES256.")
+	flag.IntVar(&config.MaxDays, "y", 14, "Remove the uploaded content after X days. Cannot be more than 14.")
+	flag.IntVar(&config.MaxDownloads, "w", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
 
-	flag.BoolVar(&conf.Compress, "z", true, "Compress the content using gzip.")
-	flag.BoolVar(&conf.Encrypt, "e", true, "Encrypt the content using AES256.")
-	flag.IntVar(&conf.MaxDays, "y", 14, "Remove the uploaded content after X days. Cannot be more than 14.")
-	flag.IntVar(&conf.MaxDownloads, "w", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
+	args := parseArgs()
 
-	flag.Parse()
-
-	args := flag.Args()
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "Error: Incorrect number of arguments.")
 		flag.Usage()
 	}
 
-	conf.Key = getKey()
+	config.Key = getKey()
 
 	var w io.WriteCloser
 	r, w := io.Pipe()
 
-	go Put(w, conf, args)
+	go Put(w, config, args)
 
 	// Make http request
 	client := &http.Client{}
@@ -154,9 +159,9 @@ Options:
 	handleError(err)
 
 	// Set headers
-	req.Header.Set("Max-Days", strconv.Itoa(conf.MaxDays))
-	if conf.MaxDownloads != 0 {
-		req.Header.Set("Max-Downloads", strconv.Itoa(conf.MaxDownloads))
+	req.Header.Set("Max-Days", strconv.Itoa(config.MaxDays))
+	if config.MaxDownloads != 0 {
+		req.Header.Set("Max-Downloads", strconv.Itoa(config.MaxDownloads))
 	}
 
 	// Get http response
@@ -170,22 +175,17 @@ Options:
 	fmt.Println(string(body))
 }
 
-func parse(conf *Config) {
+func parseArgs() []string {
 
+	v := flag.Bool("version", false, "Show version and exit.")
 	flag.Parse()
 
-	flag.Visit(func(f *flag.Flag) {
-		fmt.Println("FLAG", f.Name, f.Value)
-	})
-
-	// Parse config file
-	if configfile != "" {
-		f, err := os.Open(configfile)
-		handleError(err)
-
-		err = json.NewDecoder(f).Decode(&conf)
-		handleError(err)
+	if *v {
+		fmt.Println(Version)
+		os.Exit(0)
 	}
+
+	return flag.Args()
 }
 
 func handleError(err error) {

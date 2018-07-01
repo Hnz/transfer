@@ -111,7 +111,8 @@ func TestPutGet(t *testing.T) {
 	handleError(err)
 	defer os.RemoveAll(dir)
 
-	var key [32]byte
+	password := []byte("ThePassword")
+	key := sha256.Sum256(password)
 
 	var conf = Config{
 		Compress: true,

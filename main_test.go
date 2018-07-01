@@ -112,12 +112,9 @@ func TestPutGet(t *testing.T) {
 	handleError(err)
 	defer os.RemoveAll(dir)
 
-	password := "ThePassword"
-
 	var conf = Config{
 		Compress: true,
 		Encrypt:  true,
-		Password: password,
 		DestDir:  dir,
 	}
 

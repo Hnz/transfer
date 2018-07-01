@@ -20,41 +20,31 @@ import (
 func Put(w io.WriteCloser, conf Config, files []string) {
 
 	var header Header
+	o := w
 	defer w.Close()
 
 	if conf.Encrypt {
-		// Update header
-		header |= AES256
-
-		// Make random IV and write it to the output buffer
-		iv := make([]byte, aes.BlockSize)
-		io.ReadFull(rand.Reader, iv)
-		fmt.Println(iv)
-		w.Write(iv)
-
-		// Ask for password and hash it to create the key
-		key := getKey()
-
-		// Create writer
-		block, err := aes.NewCipher(key[:])
-		handleError(err)
-		stream := cipher.NewOFB(block, iv[:])
-		w = cipher.StreamWriter{S: stream, W: w}
-		defer w.Close()
+		header.AddFlag(AES256)
 	}
 
 	if conf.Compress {
-		// Update header
-		header |= GZIP
-
-		w = gzip.NewWriter(w)
-		defer w.Close()
+		header.AddFlag(GZIP)
 	}
 
 	// Write header
-	header |= TAR
+	header.AddFlag(TAR)
 	fmt.Println("Header", header, header.HasFlag(TAR))
-	binary.Write(w, binary.LittleEndian, header)
+	binary.Write(o, binary.LittleEndian, header)
+
+	if header.HasFlag(AES256) {
+		w = WrapWriterAes256(w, conf.Key)
+		defer w.Close()
+	}
+
+	if header.HasFlag(GZIP) {
+		w = WrapWriterGzip(w)
+		defer w.Close()
+	}
 
 	tw := tar.NewWriter(w)
 	defer tw.Close()

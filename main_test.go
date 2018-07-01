@@ -51,7 +51,7 @@ func TestAes256(t *testing.T) {
 
 func TestGzip(t *testing.T) {
 
-	var r io.ReadCloser
+	var r io.Reader
 	var w io.WriteCloser
 
 	in := []byte("A long time ago in a galaxy far, far away...\n")
@@ -83,10 +83,6 @@ func TestGzip(t *testing.T) {
 	if string(in) != string(out) {
 		log.Fatalf("Input is different from output.\nIn:  %s\nOut: %s\n", in, out)
 	}
-
-	if err := r.Close(); err != nil {
-		log.Fatal(err)
-	}
 }
 
 func TestHeader(t *testing.T) {
@@ -113,15 +109,19 @@ func TestPutGet(t *testing.T) {
 	handleError(err)
 	defer os.RemoveAll(dir)
 
+	var key [32]byte
+
 	var conf = Config{
 		Compress: true,
-		Encrypt:  false,
+		Encrypt:  true,
+		Key:      key,
 		DestDir:  dir,
 	}
 
 	file := filepath.Join(dir, "archive")
 	f, err := os.OpenFile(file, os.O_CREATE, 0600)
 	handleError(err)
+	fmt.Println(f.Name())
 	Put(f, conf, files)
 	f.Close()
 
@@ -130,19 +130,41 @@ func TestPutGet(t *testing.T) {
 	Get(f, conf)
 	f.Close()
 
-	file1 := filepath.Join(dir, "LICENSE.md")
-	file2 := "LICENSE.md"
+	for _, file := range files {
+		file1 := filepath.Join(dir, file)
 
-	if !compareFiles(file1, file2) {
-		t.Fatalf("File %s is different then file %s", file1, file2)
+		if !compareFiles(file1, file) {
+			t.Fatalf("File %s is different then file %s", file1, file)
+		}
+	}
+}
+
+func TestPut(t *testing.T) {
+
+	dir, err := ioutil.TempDir("", "transfer_go")
+	handleError(err)
+	defer os.RemoveAll(dir)
+
+	var key [32]byte
+
+	var conf = Config{
+		Compress: true,
+		Encrypt:  true,
+		Key:      key,
+		DestDir:  dir,
 	}
 
-	file1 = filepath.Join(dir, "README.md")
-	file2 = "README.md"
+	file := filepath.Join(dir, "archive")
+	f, err := os.OpenFile(file, os.O_CREATE, 0600)
+	handleError(err)
 
-	if !compareFiles(file1, file2) {
-		t.Fatalf("File %s is different then file %s", file1, file2)
-	}
+	Put(f, conf, files)
+	f.Close()
+
+	b, err := ioutil.ReadFile(f.Name())
+	handleError(err)
+
+	fmt.Println(b)
 }
 
 func compareFiles(file1, file2 string) bool {

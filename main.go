@@ -15,25 +15,26 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"syscall"
 
 	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Version is the version of the application
-const Version = "0.0.1"
+const Version = "0.1.0"
 
 // Config specifies configuration options
 type Config struct {
-	Cert         string `json:"cert"`
-	Compress     bool   `json:"compress"`
-	DestDir      string `json:"destdir"`
-	Encrypt      bool   `json:"encrypt"`
-	Host         string `json:"host"`
-	Key          string `json:"key"`
-	MaxDownloads int    `json:"maxdownloads"`
-	MaxDays      int    `json:"maxdays"`
-	Port         int    `json:"port"`
+	Cert         string   `json:"cert"`
+	Compress     bool     `json:"compress"`
+	DestDir      string   `json:"destdir"`
+	Encrypt      bool     `json:"encrypt"`
+	Host         string   `json:"host"`
+	Key          [32]byte `json:"key"`
+	MaxDownloads int      `json:"maxdownloads"`
+	MaxDays      int      `json:"maxdays"`
+	Port         int      `json:"port"`
 }
 
 var configfile string
@@ -67,7 +68,7 @@ func printHelp() {
 	u := `GoTransfer %s
 
 Usage:
-  gotransfer get [options]
+  gotransfer get [options] <url>
   gotransfer put [options] <files...>
   gotransfer -h | --help
 
@@ -81,7 +82,7 @@ Options:
 func cmdGet() {
 	flag.Usage = func() {
 		u := `Usage:
-  %s get [options]
+  %s get [options] <url>
 
 Options:
 `
@@ -101,9 +102,11 @@ Options:
 	args := flag.Args()
 
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "Error: Incorrect number of arguments.")
+		fmt.Fprintln(os.Stderr, "Error: Incorrect number of arguments.")
 		flag.Usage()
 	}
+
+	conf.Key = getKey()
 
 	r, err := http.Get(args[0])
 	handleError(err)
@@ -130,13 +133,15 @@ Options:
 	flag.IntVar(&conf.MaxDays, "y", 14, "Remove the uploaded content after X days. Cannot be more than 14.")
 	flag.IntVar(&conf.MaxDownloads, "w", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
 
-	parse(&conf)
+	flag.Parse()
 
 	args := flag.Args()
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "Error: Incorrect number of arguments.")
 		flag.Usage()
 	}
+
+	conf.Key = getKey()
 
 	var w io.WriteCloser
 	r, w := io.Pipe()
@@ -149,12 +154,11 @@ Options:
 	handleError(err)
 
 	// Set headers
-	/*
-		req.Header.Set("Max-Days", string(conf.MaxDays))
-		if conf.MaxDownloads != 0 {
-			req.Header.Set("Max-Downloads", string(conf.MaxDownloads))
-		}
-	*/
+	req.Header.Set("Max-Days", strconv.Itoa(conf.MaxDays))
+	if conf.MaxDownloads != 0 {
+		req.Header.Set("Max-Downloads", strconv.Itoa(conf.MaxDownloads))
+	}
+
 	// Get http response
 	res, err := client.Do(req)
 	handleError(err)

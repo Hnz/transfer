@@ -26,24 +26,13 @@ func Get(r io.Reader, conf Config) {
 	fmt.Println("HEADER", header)
 
 	if conf.Encrypt {
-		// First read the IV from the stream
-		iv := make([]byte, aes.BlockSize)
-		io.ReadFull(r, iv)
-		//r.Read(iv)
-		fmt.Println(iv)
-		key := getKey()
-
-		// Create reader
-		block, err := aes.NewCipher(key[:])
-		handleError(err)
-		stream := cipher.NewOFB(block, iv[:])
-		r = cipher.StreamReader{S: stream, R: r}
+		r = WrapReaderAES256(r, conf.Key)
 	}
 
 	if conf.Compress {
-		r, err := gzip.NewReader(r)
+		var err error
+		r, err = WrapReaderGzip(r)
 		handleError(err)
-		defer r.Close()
 	}
 
 	tr := tar.NewReader(r)
@@ -105,7 +94,7 @@ func Unpack(tr *tar.Reader, dest string) error {
 	}
 }
 
-func WrapReaderGzip(r io.ReadCloser) (io.ReadCloser, error) {
+func WrapReaderGzip(r io.Reader) (io.Reader, error) {
 	return gzip.NewReader(r)
 }
 

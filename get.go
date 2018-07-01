@@ -40,10 +40,10 @@ func Get(r io.Reader, conf Config, passwordFunc func() []byte) error {
 
 	tr := tar.NewReader(r)
 
-	return Unpack(tr, conf.DestDir)
+	return unpack(tr, conf.DestDir)
 }
 
-func Unpack(tr *tar.Reader, dest string) error {
+func unpack(tr *tar.Reader, dest string) error {
 
 	for {
 		header, err := tr.Next()

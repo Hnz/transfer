@@ -18,9 +18,11 @@ import (
 
 func Put(w io.WriteCloser, conf Config, passwordFunc func() []byte, files []string) error {
 
-	var header Header
-	o := w
 	defer w.Close()
+
+	// Create header
+	var header Header
+	header.AddFlag(TAR)
 
 	if conf.Encrypt {
 		header.AddFlag(AES256)
@@ -31,8 +33,7 @@ func Put(w io.WriteCloser, conf Config, passwordFunc func() []byte, files []stri
 	}
 
 	// Write header
-	header.AddFlag(TAR)
-	binary.Write(o, binary.LittleEndian, header)
+	binary.Write(w, binary.LittleEndian, header)
 
 	if header.HasFlag(AES256) {
 		w = wrapWriterAES256(w, passwordFunc())

@@ -24,20 +24,20 @@ import (
 )
 
 // Version is the version of the application
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 // Salt is added to the password when hashing it
 const Salt = "WGL4xaNR5mOZCmznamuxLIYNXja4uF7N"
 
+const useragent = "Transfer.go/" + Version
+
 // Config specifies configuration options
 type Config struct {
-	Compress bool   `json:"compress"`
-	DestDir  string `json:"destdir"`
-	Encrypt  bool   `json:"encrypt"`
-	//Key          [32]byte `json:"key"`
+	Compress     bool   `json:"compress"`
+	DestDir      string `json:"destdir"`
+	Encrypt      bool   `json:"encrypt"`
 	MaxDownloads int    `json:"maxdownloads"`
 	MaxDays      int    `json:"maxdays"`
-	Password     string `json:"password"`
 }
 
 var config Config
@@ -102,8 +102,6 @@ Options:
 		os.Exit(2)
 	}
 
-	flag.BoolVar(&config.Compress, "z", true, "Decompress the content using gzip.")
-	flag.BoolVar(&config.Encrypt, "e", true, "Decrypt the content using AES256.")
 	flag.StringVar(&config.DestDir, "d", ".", "Destination directory.")
 
 	args := parseArgs()
@@ -113,10 +111,19 @@ Options:
 		flag.Usage()
 	}
 
-	r, err := http.Get(args[0])
+	// Make http request
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, args[0], nil)
 	handleError(err)
 
-	Get(r.Body, config, getPassword)
+	// Set headers
+	req.Header.Set("User-Agent", useragent)
+
+	res, err := client.Do(req)
+	handleError(err)
+
+	err = Get(res.Body, config, getPassword)
+	handleError(err)
 }
 
 func cmdPut() {
@@ -146,7 +153,9 @@ Options:
 	var w io.WriteCloser
 	r, w := io.Pipe()
 
-	go Put(w, config, getPassword, args)
+	passwordFunc := getPassword
+
+	go Put(w, config, passwordFunc, args)
 
 	// Make http request
 	client := &http.Client{}
@@ -154,6 +163,7 @@ Options:
 	handleError(err)
 
 	// Set headers
+	req.Header.Set("User-Agent", useragent)
 	req.Header.Set("Max-Days", strconv.Itoa(config.MaxDays))
 	if config.MaxDownloads != 0 {
 		req.Header.Set("Max-Downloads", strconv.Itoa(config.MaxDownloads))

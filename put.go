@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 )
 
-func Put(w io.WriteCloser, conf Config, files []string) {
+func Put(w io.WriteCloser, conf Config, files []string) error {
 
 	var header Header
 	o := w
@@ -33,7 +33,6 @@ func Put(w io.WriteCloser, conf Config, files []string) {
 
 	// Write header
 	header.AddFlag(TAR)
-	fmt.Println("Header", header, header.HasFlag(TAR))
 	binary.Write(o, binary.LittleEndian, header)
 
 	if header.HasFlag(AES256) {
@@ -51,8 +50,12 @@ func Put(w io.WriteCloser, conf Config, files []string) {
 
 	for _, f := range files {
 		err := add(tw, f)
-		handleError(err)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // Tar takes a source and variable writers and walks 'source' writing each file

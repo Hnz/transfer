@@ -2,7 +2,7 @@
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 
-// Package gotransfer is a command line utility for uploading files to transfer.sh
+// Package transfer is a command line utility for uploading files to transfer.sh
 package main
 
 import (
@@ -42,7 +42,7 @@ var configfile string
 func main() {
 
 	// Set flags that apply to all commands
-	flag.StringVar(&configfile, "configfile", "", "Path to a JSON-formatted config file. Options read "+
+	flag.StringVar(&configfile, "c", "", "Path to a JSON-formatted config file. Options read "+
 		"from the config file will \n        overwrite options set on the commandline.")
 
 	if len(os.Args) < 2 {
@@ -65,16 +65,16 @@ func main() {
 }
 
 func printHelp() {
-	u := `GoTransfer %s
+	u := `Transfer %s
 
 Usage:
-  gotransfer get [options] <url>
-  gotransfer put [options] <files...>
-  gotransfer -h | --help
+  %s get [options] <url>
+  %s put [options] <files...>
+  %s -h | --help
 
 Options:
 `
-	fmt.Fprintf(os.Stderr, u, Version)
+	fmt.Fprintf(os.Stderr, u, Version, os.Args[0], os.Args[0], os.Args[0])
 	flag.PrintDefaults()
 	os.Exit(2)
 }

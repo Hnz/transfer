@@ -17,28 +17,31 @@ import (
 	"path/filepath"
 )
 
-func Get(r io.Reader, conf Config) {
+func Get(r io.Reader, conf Config) error {
+
+	var err error
 
 	// Read header
 	var header Header
 	binary.Read(r, binary.LittleEndian, &header)
 
-	fmt.Println("HEADER", header)
-
-	if conf.Encrypt {
-		r = WrapReaderAES256(r, conf.Key)
+	if header.HasFlag(AES256) {
+		r, err = WrapReaderAES256(r, conf.Key)
+		if err != nil {
+			return err
+		}
 	}
 
-	if conf.Compress {
-		var err error
+	if header.HasFlag(GZIP) {
 		r, err = WrapReaderGzip(r)
-		handleError(err)
+		if err != nil {
+			return err
+		}
 	}
 
 	tr := tar.NewReader(r)
 
-	err := Unpack(tr, conf.DestDir)
-	handleError(err)
+	return Unpack(tr, conf.DestDir)
 }
 
 func Unpack(tr *tar.Reader, dest string) error {
@@ -98,14 +101,16 @@ func WrapReaderGzip(r io.Reader) (io.Reader, error) {
 	return gzip.NewReader(r)
 }
 
-func WrapReaderAES256(r io.Reader, key [32]byte) io.Reader {
+func WrapReaderAES256(r io.Reader, key [32]byte) (io.Reader, error) {
 	// First read the IV from the stream
 	iv := make([]byte, aes.BlockSize)
 	io.ReadFull(r, iv)
 
 	// Create reader
 	block, err := aes.NewCipher(key[:])
-	handleError(err)
+	if err != nil {
+		return r, err
+	}
 	stream := cipher.NewOFB(block, iv[:])
-	return cipher.StreamReader{S: stream, R: r}
+	return cipher.StreamReader{S: stream, R: r}, nil
 }

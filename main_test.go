@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -40,8 +39,11 @@ func TestAes256(t *testing.T) {
 	handleError(err)
 	defer f.Close()
 
-	r = WrapReaderAES256(r, key)
+	r, err = WrapReaderAES256(r, key)
+	handleError(err)
+
 	out, err := ioutil.ReadAll(r)
+	handleError(err)
 
 	if string(in) != string(out) {
 		log.Fatalf("Input is different from output.\nIn:  %s\nOut: %s\n", in, out)
@@ -139,34 +141,6 @@ func TestPutGet(t *testing.T) {
 	}
 }
 
-func TestPut(t *testing.T) {
-
-	dir, err := ioutil.TempDir("", "transfer_go")
-	handleError(err)
-	defer os.RemoveAll(dir)
-
-	var key [32]byte
-
-	var conf = Config{
-		Compress: true,
-		Encrypt:  true,
-		Key:      key,
-		DestDir:  dir,
-	}
-
-	file := filepath.Join(dir, "archive")
-	f, err := os.OpenFile(file, os.O_CREATE, 0600)
-	handleError(err)
-
-	Put(f, conf, files)
-	f.Close()
-
-	b, err := ioutil.ReadFile(f.Name())
-	handleError(err)
-
-	fmt.Println(b)
-}
-
 func compareFiles(file1, file2 string) bool {
 	file1stat, err := os.Stat(file1)
 	handleError(err)
@@ -174,35 +148,6 @@ func compareFiles(file1, file2 string) bool {
 	handleError(err)
 
 	return file1stat.Size() == file2stat.Size() && file1stat.Mode() == file2stat.Mode()
-}
-
-func TestMain(t *testing.T) {
-
-	data, err := os.Open("LICENSE.md")
-	if err != nil {
-		//handle error
-		log.Fatal(err)
-	}
-
-	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodPut, "https://transfer.sh/LICENSE.md", data)
-	if err != nil {
-		// handle error
-		log.Fatal(err)
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		// handle error
-		log.Fatal(err)
-	}
-
-	defer res.Body.Close()
-	contents, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		fmt.Printf("%s", err)
-		os.Exit(1)
-	}
-	fmt.Printf("%s\n", string(contents))
 }
 
 func assertEqual(t *testing.T, a interface{}, b interface{}) {

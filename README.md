@@ -1,16 +1,29 @@
 
-# Distributed Key-value store based on the raft algorithm
+# transfer.go
 
-See https://raft.github.io
+**transfer.go** is a commandline utility to upload files to https://transfer.sh.
 
-A network is made out of multple nodes, which each can have one or more of the following functions:
+The folks at transfer.sh advice you to use an [alias in your .bashrc file][1].
 
-- **StorageHandler** - Responsable for storing and retrieving key-value pairs.
-- **QueryHandler** - Responsable for sending incoming request to the correct storage.
-- **UIHandler** - Provides a web-based user interface
+Main features are:
 
-# Usage
+- Automatically creates a tar archive when multiple files are selected
+- Can encrypt files using AES256
+- Can compress files using gzip
+- Uses streams for maximum efficiency
+- Full Windows support
 
-    .\keyvaluestore.exe ca ca.pem
-    .\keyvaluestore.exe newcert mynode ca.pem mynode.pem
-    .\keyvaluestore.exe server -cert mynode.pem
+# Examples
+
+Upload README.md and LICENSE.md, using default options.
+
+    $ transfer put README.md LICENSE.md
+    Enter password:
+    https://transfer.sh/9mzIi/MYFILE
+
+Retrieve an archive, decrypt it, and unpack it in the directory `tmp`.
+
+    $ transfer get -d tmp https://transfer.sh/9mzIi/MYFILE
+    Enter password:
+
+[1]: https://gist.github.com/nl5887/a511f172d3fb3cd0e42d

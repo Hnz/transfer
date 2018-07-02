@@ -105,7 +105,7 @@ func TestHeader(t *testing.T) {
 	assertEqual(t, headerOut.HasFlag(GZIP), true)
 }
 
-func TestPutGet(t *testing.T) {
+func TestPutGetMultiple(t *testing.T) {
 
 	dir, err := ioutil.TempDir("", "transfer_go")
 	handleError(err)
@@ -121,7 +121,7 @@ func TestPutGet(t *testing.T) {
 	f, err := os.OpenFile(file, os.O_CREATE, 0600)
 	handleError(err)
 
-	Put(f, header, getTestKey, files)
+	Put(f, conf, getTestKey, files)
 	f.Close()
 
 	f, err = os.Open(file)
@@ -135,6 +135,37 @@ func TestPutGet(t *testing.T) {
 		if !compareFiles(file1, file) {
 			t.Fatalf("File %s is different then file %s", file1, file)
 		}
+	}
+}
+
+func TestPutGetSingle(t *testing.T) {
+
+	dir, err := ioutil.TempDir("", "transfer_go")
+	handleError(err)
+	defer os.RemoveAll(dir)
+
+	var conf = Config{
+		Compress: true,
+		Encrypt:  true,
+		DestDir:  dir,
+	}
+
+	file := filepath.Join(dir, "archive")
+	f, err := os.Create(file)
+	handleError(err)
+
+	Put(f, conf, getTestKey, []string{"README.md"})
+	f.Close()
+
+	f, err = os.Open(file)
+	handleError(err)
+
+	dest := filepath.Join(dir, "README.md")
+	Get(f, dest, getTestKey)
+	f.Close()
+
+	if !compareFiles("README.md", dest) {
+		t.Fatalf("File README.md is different then file %s", dest)
 	}
 }
 

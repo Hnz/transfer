@@ -166,6 +166,9 @@ Options:
 	}
 
 	if len(args) == 1 && args[0] == "-" {
+		if config.KeyFile == "" {
+			fmt.Fprintln(os.Stderr, "Error: -k required when reading from stdin.")
+		}
 		files = []string{}
 	}
 

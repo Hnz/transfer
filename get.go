@@ -73,7 +73,7 @@ func unpack(tr *tar.Reader, destdir string) error {
 
 		// the target location where the dir/file should be created
 		target := filepath.Join(destdir, header.Name)
-		//fmt.Println(">", target)
+		info(target)
 
 		// check the file type
 		switch header.Typeflag {

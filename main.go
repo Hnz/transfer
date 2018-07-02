@@ -23,7 +23,7 @@ import (
 )
 
 // Version is the version of the application
-const Version = "0.1.1"
+const Version = "0.2.0"
 
 // Salt is added to the password when hashing it
 const Salt = "WGL4xaNR5mOZCmznamuxLIYNXja4uF7N"
@@ -38,6 +38,7 @@ type Config struct {
 	KeyFile      string `json:"keyfile"`
 	MaxDownloads int    `json:"maxdownloads"`
 	MaxDays      int    `json:"maxdays"`
+	Verbose      bool   `json:"verbose"`
 }
 
 // KeyFunc is a function that is called to get the encryption key
@@ -154,11 +155,12 @@ Options:
 	flag.BoolVar(&config.Compress, "z", true, "Compress the content using gzip.")
 	flag.BoolVar(&config.Encrypt, "e", true, "Encrypt the content using AES256.")
 	flag.StringVar(&config.KeyFile, "k", "", "File from which to load the encryption key.")
-	flag.IntVar(&config.MaxDays, "y", 0, "Remove the uploaded content after X days.")
-	flag.IntVar(&config.MaxDownloads, "d", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
+	flag.IntVar(&config.MaxDays, "d", 0, "Remove the uploaded content after X days.")
+	flag.IntVar(&config.MaxDownloads, "m", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
 
 	args := parseArgs()
 	files := args
+	filename := "-"
 
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "Error: Incorrect number of arguments.")
@@ -170,6 +172,17 @@ Options:
 			fmt.Fprintln(os.Stderr, "Error: -k required when reading from stdin.")
 		}
 		files = []string{}
+	}
+
+	if len(args) == 1 {
+		filename = args[0]
+
+		if args[0] == "-" {
+			if config.KeyFile == "" {
+				fmt.Fprintln(os.Stderr, "Error: -k required when reading from stdin.")
+			}
+			files = []string{}
+		}
 	}
 
 	var w io.WriteCloser
@@ -187,7 +200,7 @@ Options:
 	go Put(w, config, keyFunc, files)
 
 	// Make http request
-	req, err := http.NewRequest(http.MethodPut, "https://transfer.sh/MYFILE", r)
+	req, err := http.NewRequest(http.MethodPut, "https://transfer.sh/"+filename, r)
 	handleError(err)
 
 	// Set headers
@@ -206,13 +219,13 @@ Options:
 	defer res.Body.Close()
 
 	// Output response body
-	body, err := ioutil.ReadAll(res.Body)
+	_, err = io.Copy(os.Stdout, res.Body)
 	handleError(err)
-	fmt.Println(string(body))
 }
 
 func parseArgs() []string {
 
+	flag.BoolVar(&config.Verbose, "v", false, "Output log.")
 	v := flag.Bool("version", false, "Show version and exit.")
 	flag.Parse()
 
@@ -245,4 +258,10 @@ func passwordToKey(password []byte) []byte {
 	h.Write(password)
 	h.Write([]byte(Salt))
 	return h.Sum(nil)
+}
+
+func info(s string) {
+	if config.Verbose {
+		fmt.Println(s)
+	}
 }

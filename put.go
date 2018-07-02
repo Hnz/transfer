@@ -84,6 +84,8 @@ func add(tw *tar.Writer, src string) error {
 
 		handleError(err)
 
+		info(fi.Name())
+
 		// create a new dir/file header
 		header, err := tar.FileInfoHeader(fi, fi.Name())
 		handleError(err)

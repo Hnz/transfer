@@ -6,7 +6,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -17,6 +19,12 @@ import (
 
 var files = []string{"README.md", "LICENSE.md"}
 var key = []byte("Test Key 12345678901234567890123")
+
+func TestA(t *testing.T) {
+	key := make([]byte, 32)
+	io.ReadFull(rand.Reader, key)
+	fmt.Println(key)
+}
 
 func TestAes256(t *testing.T) {
 

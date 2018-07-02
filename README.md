@@ -1,5 +1,5 @@
 
-# transfer.go
+# transfer.go [![GoDoc](https://godoc.org/github.com/narqo/go-badge?status.svg)](https://godoc.org/github.com/narqo/go-badge)
 
 **transfer.go** is a commandline utility to upload files to https://transfer.sh.
 
@@ -19,18 +19,18 @@ Upload README.md and LICENSE.md, using default options.
 
     $ transfer put README.md LICENSE.md
     Enter password:
-    https://transfer.sh/9mzIi/MYFILE
+    https://transfer.sh/9mzIi/-
 
 Retrieve an archive, decrypt it, and unpack it in the directory `tmp`.
 
-    $ transfer get -d tmp https://transfer.sh/9mzIi/MYFILE
+    $ transfer get -d tmp https://transfer.sh/9mzIi/-
     Enter password:
 
 Upload README.md without encrytion and compression.
 
     $ transfer put -e=0 -z=0 README.md
 
-You can use file - to read from stdin.
+You can use file `-` to read from stdin.
 
     $ echo "My Text" | transfer put -
 

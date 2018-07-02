@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"os/user"
@@ -36,10 +35,15 @@ type Config struct {
 	Compress     bool   `json:"compress"`
 	DestDir      string `json:"destdir"`
 	Encrypt      bool   `json:"encrypt"`
+	KeyFile      string `json:"keyfile"`
 	MaxDownloads int    `json:"maxdownloads"`
 	MaxDays      int    `json:"maxdays"`
 }
 
+// KeyFunc is a function that is called to get the encryption key
+type KeyFunc func() []byte
+
+// Define global config variables
 var config Config
 var configfile string
 
@@ -85,7 +89,7 @@ Usage:
 
   Config is read from %s
 `
-	fmt.Fprintf(os.Stderr, u, Version, os.Args[0], os.Args[0], os.Args[0], configfile)
+	fmt.Fprintf(os.Stderr, u, Version, os.Args[0], os.Args[0], os.Args[0], os.Args[0], configfile)
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -103,12 +107,21 @@ Options:
 	}
 
 	flag.StringVar(&config.DestDir, "d", ".", "Destination directory.")
+	flag.StringVar(&config.KeyFile, "k", "", "File from which to load the encryption key.")
 
 	args := parseArgs()
 
 	if len(args) != 1 {
 		fmt.Fprintln(os.Stderr, "Error: Incorrect number of arguments.")
 		flag.Usage()
+	}
+
+	// Set function that retrieves the encryption key
+	keyFunc := getKey
+	if config.KeyFile != "" {
+		b, err := ioutil.ReadFile(config.KeyFile)
+		handleError(err)
+		keyFunc = func() []byte { return b }
 	}
 
 	// Make http request
@@ -122,7 +135,7 @@ Options:
 	res, err := client.Do(req)
 	handleError(err)
 
-	err = Get(res.Body, config, getPassword)
+	err = Get(res.Body, config, keyFunc)
 	handleError(err)
 }
 
@@ -140,6 +153,7 @@ Options:
 
 	flag.BoolVar(&config.Compress, "z", true, "Compress the content using gzip.")
 	flag.BoolVar(&config.Encrypt, "e", true, "Encrypt the content using AES256.")
+	flag.StringVar(&config.KeyFile, "k", "", "File from which to load the encryption key.")
 	flag.IntVar(&config.MaxDays, "y", 14, "Remove the uploaded content after X days. Cannot be more than 14.")
 	flag.IntVar(&config.MaxDownloads, "w", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
 
@@ -153,9 +167,15 @@ Options:
 	var w io.WriteCloser
 	r, w := io.Pipe()
 
-	passwordFunc := getPassword
+	// Set function that retrieves the encryption key
+	keyFunc := getKey
+	if config.KeyFile != "" {
+		b, err := ioutil.ReadFile(config.KeyFile)
+		handleError(err)
+		keyFunc = func() []byte { return b }
+	}
 
-	go Put(w, config, passwordFunc, args)
+	go Put(w, config, keyFunc, args)
 
 	// Make http request
 	client := &http.Client{}
@@ -195,17 +215,18 @@ func parseArgs() []string {
 
 func handleError(err error) {
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(2)
 	}
 }
 
 // Ask for password and hash it to create the key
-func getPassword() []byte {
+func getKey() []byte {
 	fmt.Print("Enter password: ")
 	password, err := terminal.ReadPassword(int(syscall.Stdin))
 	fmt.Print("\n")
 	handleError(err)
-	return password
+	return passwordToKey(password)
 }
 
 func passwordToKey(password []byte) []byte {

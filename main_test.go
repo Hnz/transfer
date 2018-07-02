@@ -16,6 +16,7 @@ import (
 )
 
 var files = []string{"README.md", "LICENSE.md"}
+var key = []byte("Test Key 12345678901234567890123")
 
 func TestAes256(t *testing.T) {
 
@@ -24,13 +25,11 @@ func TestAes256(t *testing.T) {
 
 	in := []byte("A long time ago in a galaxy far, far away...\n")
 
-	password := []byte("ThePassword")
-
 	f, err := ioutil.TempFile("", "transfer_go")
 	w = f
 	handleError(err)
 
-	w = wrapWriterAES256(w, password)
+	w = wrapWriterAES256(w, key)
 
 	_, err = w.Write(in)
 	handleError(err)
@@ -40,7 +39,7 @@ func TestAes256(t *testing.T) {
 	handleError(err)
 	defer f.Close()
 
-	r, err = wrapReaderAES256(r, password)
+	r, err = wrapReaderAES256(r, key)
 	handleError(err)
 
 	out, err := ioutil.ReadAll(r)
@@ -124,12 +123,12 @@ func TestPutGet(t *testing.T) {
 
 	//fmt.Println(f.Name())
 
-	Put(f, conf, getTestPassword, files)
+	Put(f, conf, getTestKey, files)
 	f.Close()
 
 	f, err = os.Open(file)
 	handleError(err)
-	Get(f, conf, getTestPassword)
+	Get(f, conf, getTestKey)
 	f.Close()
 
 	for _, file := range files {
@@ -156,6 +155,6 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	}
 }
 
-func getTestPassword() []byte {
-	return []byte("Test Password")
+func getTestKey() []byte {
+	return key
 }

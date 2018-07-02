@@ -97,13 +97,10 @@ func wrapReaderGzip(r io.Reader) (io.Reader, error) {
 	return gzip.NewReader(r)
 }
 
-func wrapReaderAES256(r io.Reader, password []byte) (io.Reader, error) {
+func wrapReaderAES256(r io.Reader, key []byte) (io.Reader, error) {
 	// First read the IV from the stream
 	iv := make([]byte, aes.BlockSize)
 	io.ReadFull(r, iv)
-
-	// Get key from password
-	key := passwordToKey(password)
 
 	// Create reader
 	block, err := aes.NewCipher(key)

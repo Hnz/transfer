@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 )
 
-func Put(w io.WriteCloser, conf Config, passwordFunc func() []byte, files []string) error {
+func Put(w io.WriteCloser, conf Config, keyFunc KeyFunc, files []string) error {
 
 	defer w.Close()
 
@@ -36,7 +36,7 @@ func Put(w io.WriteCloser, conf Config, passwordFunc func() []byte, files []stri
 	binary.Write(w, binary.LittleEndian, header)
 
 	if header.HasFlag(AES256) {
-		w = wrapWriterAES256(w, passwordFunc())
+		w = wrapWriterAES256(w, keyFunc())
 		defer w.Close()
 	}
 
@@ -46,23 +46,6 @@ func Put(w io.WriteCloser, conf Config, passwordFunc func() []byte, files []stri
 	}
 
 	tw := tar.NewWriter(w)
-	defer tw.Close()
-
-	for _, f := range files {
-		err := add(tw, f)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Tar takes a source and variable writers and walks 'source' writing each file
-// found to the tar writer
-func Tar(files []string, writer io.Writer) error {
-
-	tw := tar.NewWriter(writer)
 	defer tw.Close()
 
 	for _, f := range files {
@@ -115,15 +98,12 @@ func wrapWriterGzip(w io.WriteCloser) io.WriteCloser {
 	return gzip.NewWriter(w)
 }
 
-func wrapWriterAES256(w io.WriteCloser, password []byte) io.WriteCloser {
+func wrapWriterAES256(w io.WriteCloser, key []byte) io.WriteCloser {
 
 	// Make random IV and write it to the output buffer
 	iv := make([]byte, aes.BlockSize)
 	io.ReadFull(rand.Reader, iv)
 	w.Write(iv)
-
-	// Get key from password
-	key := passwordToKey(password)
 
 	// Create writer
 	block, err := aes.NewCipher(key)

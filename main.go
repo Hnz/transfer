@@ -33,7 +33,7 @@ const useragent = "Transfer.go/" + Version
 // Config specifies configuration options
 type Config struct {
 	Compress     bool   `json:"compress"`
-	DestDir      string `json:"destdir"`
+	Dest         string `json:"dest"`
 	Encrypt      bool   `json:"encrypt"`
 	KeyFile      string `json:"keyfile"`
 	MaxDownloads int    `json:"maxdownloads"`
@@ -106,7 +106,7 @@ Options:
 		os.Exit(2)
 	}
 
-	flag.StringVar(&config.DestDir, "d", ".", "Destination directory.")
+	flag.StringVar(&config.Dest, "d", ".", "Destination directory.")
 	flag.StringVar(&config.KeyFile, "k", "", "File from which to load the encryption key.")
 
 	args := parseArgs()
@@ -125,17 +125,17 @@ Options:
 	}
 
 	// Make http request
-	client := &http.Client{}
 	req, err := http.NewRequest(http.MethodGet, args[0], nil)
 	handleError(err)
 
 	// Set headers
 	req.Header.Set("User-Agent", useragent)
 
+	client := &http.Client{}
 	res, err := client.Do(req)
 	handleError(err)
 
-	err = Get(res.Body, config.DestDir, keyFunc)
+	err = Get(res.Body, config.Dest, keyFunc)
 	handleError(err)
 }
 
@@ -154,8 +154,8 @@ Options:
 	flag.BoolVar(&config.Compress, "z", true, "Compress the content using gzip.")
 	flag.BoolVar(&config.Encrypt, "e", true, "Encrypt the content using AES256.")
 	flag.StringVar(&config.KeyFile, "k", "", "File from which to load the encryption key.")
-	flag.IntVar(&config.MaxDays, "y", 14, "Remove the uploaded content after X days. Cannot be more than 14.")
-	flag.IntVar(&config.MaxDownloads, "w", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
+	flag.IntVar(&config.MaxDays, "y", 0, "Remove the uploaded content after X days.")
+	flag.IntVar(&config.MaxDownloads, "d", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
 
 	args := parseArgs()
 	files := args
@@ -187,18 +187,20 @@ Options:
 	go Put(w, config, keyFunc, files)
 
 	// Make http request
-	client := &http.Client{}
 	req, err := http.NewRequest(http.MethodPut, "https://transfer.sh/MYFILE", r)
 	handleError(err)
 
 	// Set headers
 	req.Header.Set("User-Agent", useragent)
-	req.Header.Set("Max-Days", strconv.Itoa(config.MaxDays))
+	if config.MaxDays != 0 {
+		req.Header.Set("Max-Days", strconv.Itoa(config.MaxDays))
+	}
 	if config.MaxDownloads != 0 {
 		req.Header.Set("Max-Downloads", strconv.Itoa(config.MaxDownloads))
 	}
 
 	// Get http response
+	client := &http.Client{}
 	res, err := client.Do(req)
 	handleError(err)
 	defer res.Body.Close()

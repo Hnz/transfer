@@ -111,11 +111,10 @@ func TestPutGetMultiple(t *testing.T) {
 	handleError(err)
 	defer os.RemoveAll(dir)
 
-	// Create header
-	var header Header
-	header.AddFlag(AES256)
-	header.AddFlag(GZIP)
-	header.AddFlag(TAR)
+	var conf = Config{
+		Compress: true,
+		Encrypt:  true,
+	}
 
 	file := filepath.Join(dir, "archive")
 	f, err := os.OpenFile(file, os.O_CREATE, 0600)
@@ -147,7 +146,6 @@ func TestPutGetSingle(t *testing.T) {
 	var conf = Config{
 		Compress: true,
 		Encrypt:  true,
-		DestDir:  dir,
 	}
 
 	file := filepath.Join(dir, "archive")

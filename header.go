@@ -5,7 +5,7 @@
 package main
 
 // Header represents the header of the archive
-type Header uint16
+type Header uint8
 
 const (
 	// GZIP - compress using gzip

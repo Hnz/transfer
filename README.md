@@ -26,4 +26,8 @@ Retrieve an archive, decrypt it, and unpack it in the directory `tmp`.
     $ transfer get -d tmp https://transfer.sh/9mzIi/MYFILE
     Enter password:
 
+Upload README.md without encrytion and compression.
+
+    $ transfer put -e=0 -z=0 README.md
+
 [1]: https://gist.github.com/nl5887/a511f172d3fb3cd0e42d

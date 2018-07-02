@@ -158,10 +158,15 @@ Options:
 	flag.IntVar(&config.MaxDownloads, "w", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
 
 	args := parseArgs()
+	files := args
 
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "Error: Incorrect number of arguments.")
 		flag.Usage()
+	}
+
+	if len(args) == 1 && args[0] == "-" {
+		files = []string{}
 	}
 
 	var w io.WriteCloser
@@ -175,7 +180,8 @@ Options:
 		keyFunc = func() []byte { return b }
 	}
 
-	go Put(w, config, keyFunc, args)
+	// We need to run Put in a goroutine because io.Pipe requires one end of the pipe to do so
+	go Put(w, config, keyFunc, files)
 
 	// Make http request
 	client := &http.Client{}

@@ -135,7 +135,7 @@ Options:
 	res, err := client.Do(req)
 	handleError(err)
 
-	err = Get(res.Body, config, keyFunc)
+	err = Get(res.Body, config.DestDir, keyFunc)
 	handleError(err)
 }
 

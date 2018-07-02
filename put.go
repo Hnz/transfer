@@ -16,13 +16,17 @@ import (
 	"path/filepath"
 )
 
+// If files is empty, stdin will be used
 func Put(w io.WriteCloser, conf Config, keyFunc KeyFunc, files []string) error {
 
 	defer w.Close()
 
 	// Create header
 	var header Header
-	header.AddFlag(TAR)
+
+	if len(files) > 1 {
+		header.AddFlag(TAR)
+	}
 
 	if conf.Encrypt {
 		header.AddFlag(AES256)
@@ -45,14 +49,30 @@ func Put(w io.WriteCloser, conf Config, keyFunc KeyFunc, files []string) error {
 		defer w.Close()
 	}
 
-	tw := tar.NewWriter(w)
-	defer tw.Close()
+	if len(files) > 1 {
+		// Create tar archive if more than files are given
+		tw := tar.NewWriter(w)
+		defer tw.Close()
 
-	for _, f := range files {
-		err := add(tw, f)
+		for _, f := range files {
+			err := add(tw, f)
+			if err != nil {
+				return err
+			}
+		}
+	} else if len(files) == 1 {
+		// Else read from single file
+		f, err := os.Open(files[0])
 		if err != nil {
 			return err
 		}
+
+		_, err = io.Copy(w, f)
+		return err
+	} else {
+		// Else read from stdin
+		_, err := io.Copy(w, os.Stdin)
+		return err
 	}
 
 	return nil
@@ -67,7 +87,6 @@ func add(tw *tar.Writer, src string) error {
 		// create a new dir/file header
 		header, err := tar.FileInfoHeader(fi, fi.Name())
 		handleError(err)
-		//fmt.Println("<", header.Name)
 
 		// write the header
 		err = tw.WriteHeader(header)

@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 )
 
-func Get(r io.Reader, conf Config, passwordFunc func() []byte) error {
+func Get(r io.Reader, dest string, keyFunc KeyFunc) error {
 
 	var err error
 
@@ -25,7 +25,7 @@ func Get(r io.Reader, conf Config, passwordFunc func() []byte) error {
 	binary.Read(r, binary.LittleEndian, &header)
 
 	if header.HasFlag(AES256) {
-		r, err = wrapReaderAES256(r, passwordFunc())
+		r, err = wrapReaderAES256(r, keyFunc())
 		if err != nil {
 			return err
 		}
@@ -38,9 +38,18 @@ func Get(r io.Reader, conf Config, passwordFunc func() []byte) error {
 		}
 	}
 
-	tr := tar.NewReader(r)
+	if header.HasFlag(TAR) {
+		tr := tar.NewReader(r)
+		return unpack(tr, dest)
+	}
 
-	return unpack(tr, conf.DestDir)
+	f, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(f, r)
+	return err
 }
 
 func unpack(tr *tar.Reader, dest string) error {

@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 )
 
-func Get(r io.Reader, conf Config, passwordFunc func() []byte) error {
+func Get(r io.Reader, destdir string, passwordFunc func() []byte) error {
 
 	var err error
 
@@ -40,10 +40,10 @@ func Get(r io.Reader, conf Config, passwordFunc func() []byte) error {
 
 	tr := tar.NewReader(r)
 
-	return unpack(tr, conf.DestDir)
+	return unpack(tr, destdir)
 }
 
-func unpack(tr *tar.Reader, dest string) error {
+func unpack(tr *tar.Reader, destdir string) error {
 
 	for {
 		header, err := tr.Next()
@@ -63,7 +63,7 @@ func unpack(tr *tar.Reader, dest string) error {
 		}
 
 		// the target location where the dir/file should be created
-		target := filepath.Join(dest, header.Name)
+		target := filepath.Join(destdir, header.Name)
 		//fmt.Println(">", target)
 
 		// check the file type

@@ -111,24 +111,22 @@ func TestPutGet(t *testing.T) {
 	handleError(err)
 	defer os.RemoveAll(dir)
 
-	var conf = Config{
-		Compress: true,
-		Encrypt:  true,
-		DestDir:  dir,
-	}
+	// Create header
+	var header Header
+	header.AddFlag(AES256)
+	header.AddFlag(GZIP)
+	header.AddFlag(TAR)
 
 	file := filepath.Join(dir, "archive")
 	f, err := os.OpenFile(file, os.O_CREATE, 0600)
 	handleError(err)
 
-	//fmt.Println(f.Name())
-
-	Put(f, conf, getTestKey, files)
+	Put(f, header, getTestKey, files)
 	f.Close()
 
 	f, err = os.Open(file)
 	handleError(err)
-	Get(f, conf, getTestKey)
+	Get(f, dir, getTestKey)
 	f.Close()
 
 	for _, file := range files {

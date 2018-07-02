@@ -16,21 +16,9 @@ import (
 	"path/filepath"
 )
 
-func Put(w io.WriteCloser, conf Config, keyFunc KeyFunc, files []string) error {
+func Put(w io.WriteCloser, header Header, keyFunc KeyFunc, files []string) error {
 
 	defer w.Close()
-
-	// Create header
-	var header Header
-	header.AddFlag(TAR)
-
-	if conf.Encrypt {
-		header.AddFlag(AES256)
-	}
-
-	if conf.Compress {
-		header.AddFlag(GZIP)
-	}
 
 	// Write header
 	binary.Write(w, binary.LittleEndian, header)

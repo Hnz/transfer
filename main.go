@@ -135,7 +135,7 @@ Options:
 	res, err := client.Do(req)
 	handleError(err)
 
-	err = Get(res.Body, config, keyFunc)
+	err = Get(res.Body, config.DestDir, keyFunc)
 	handleError(err)
 }
 
@@ -175,7 +175,19 @@ Options:
 		keyFunc = func() []byte { return b }
 	}
 
-	go Put(w, config, keyFunc, args)
+	// Create header
+	var header Header
+	header.AddFlag(TAR)
+
+	if config.Encrypt {
+		header.AddFlag(AES256)
+	}
+
+	if config.Compress {
+		header.AddFlag(GZIP)
+	}
+
+	go Put(w, header, keyFunc, args)
 
 	// Make http request
 	client := &http.Client{}

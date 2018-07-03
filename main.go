@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -167,15 +168,8 @@ Options:
 		flag.Usage()
 	}
 
-	if len(args) == 1 && args[0] == "-" {
-		if config.KeyFile == "" {
-			fmt.Fprintln(os.Stderr, "Error: -k required when reading from stdin.")
-		}
-		files = []string{}
-	}
-
 	if len(args) == 1 {
-		filename = args[0]
+		_, filename = path.Split(args[0])
 
 		if args[0] == "-" {
 			if config.KeyFile == "" {

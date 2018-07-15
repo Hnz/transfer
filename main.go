@@ -87,14 +87,17 @@ Examples:
   $ transfer LICENSE.md
   https://transfer.sh/9mzIi/LICENSE.md
 
+  # Create a tar.gz archive
   $ transfer -t -z LICENSE.md README.md
   https://transfer.sh/Qznmo/tar
+
+  # Download and unpack the archive in <mydir>
+  $ transfer.exe -g -t -z -d mydir https://transfer.sh/Qznmo/tar
 
   # Read from stdin and encrypt
   $ echo "secret message" | transfer -e -
   Enter password:
-  https://transfer.sh/OaJRF/LICENSE.md
-  https://transfer.sh/G0UXd/README.md
+  https://transfer.sh/OaJRF/stdin
 `)
 	os.Exit(2)
 }

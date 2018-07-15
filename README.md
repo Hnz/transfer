@@ -1,5 +1,5 @@
 
-# transfer.go [![GoDoc](https://godoc.org/github.com/narqo/go-badge?status.svg)](https://godoc.org/github.com/narqo/go-badge)
+# transfer.go [![GoDoc](https://godoc.org/github.com/hnz/transfer?status.svg)](https://godoc.org/github.com/hnz/transfer)
 
 **transfer.go** is a commandline utility to upload files to https://transfer.sh.
 

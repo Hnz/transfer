@@ -9,50 +9,77 @@ import (
 	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
-	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 )
 
-func Get(r io.Reader, dest string, keyFunc KeyFunc) error {
+// Get downloads files
+func Get(config Config, urls []string, key [32]byte) error {
 
-	var err error
-
-	// Read header
-	var header Header
-	binary.Read(r, binary.LittleEndian, &header)
-
-	if header.HasFlag(AES256) {
-		r, err = wrapReaderAES256(r, keyFunc())
+	for _, url := range urls {
+		r, err := download(url)
 		if err != nil {
 			return err
 		}
-	}
 
-	if header.HasFlag(GZIP) {
-		r, err = wrapReaderGzip(r)
+		if config.Encrypt {
+			r, err = wrapReaderAES256(r, key)
+			if err != nil {
+				return err
+			}
+		}
+
+		if config.Compress {
+			r, err = wrapReaderGzip(r)
+			if err != nil {
+				return err
+			}
+		}
+
+		if config.Tar {
+			return unpack(r, config.Dest)
+		}
+
+		out := filepath.Join(config.Dest, path.Base(url))
+		f, err := os.Create(out)
 		if err != nil {
 			return err
 		}
-	}
+		defer f.Close()
 
-	if header.HasFlag(TAR) {
-		tr := tar.NewReader(r)
-		return unpack(tr, dest)
-	}
-
-	f, err := os.Create(dest)
-	if err != nil {
+		_, err = io.Copy(f, r)
 		return err
 	}
 
-	_, err = io.Copy(f, r)
-	return err
+	return nil
 }
 
-func unpack(tr *tar.Reader, destdir string) error {
+func download(url string) (io.Reader, error) {
+
+	// Make http request
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set headers
+	req.Header.Set("User-Agent", useragent)
+
+	res, err := http.DefaultClient.Do(req)
+	if err == nil && (res.StatusCode < 200 || res.StatusCode > 299) {
+		err = fmt.Errorf("Invalid http status %d %s", res.StatusCode, http.StatusText(res.StatusCode))
+	}
+	return res.Body, err
+}
+
+func unpack(r io.Reader, destdir string) error {
+
+	tr := tar.NewReader(r)
 
 	for {
 		header, err := tr.Next()
@@ -73,7 +100,7 @@ func unpack(tr *tar.Reader, destdir string) error {
 
 		// the target location where the dir/file should be created
 		target := filepath.Join(destdir, header.Name)
-		info(target)
+		print(target)
 
 		// check the file type
 		switch header.Typeflag {
@@ -106,16 +133,16 @@ func wrapReaderGzip(r io.Reader) (io.Reader, error) {
 	return gzip.NewReader(r)
 }
 
-func wrapReaderAES256(r io.Reader, key []byte) (io.Reader, error) {
+func wrapReaderAES256(r io.Reader, key [32]byte) (io.Reader, error) {
 	// First read the IV from the stream
 	iv := make([]byte, aes.BlockSize)
 	io.ReadFull(r, iv)
 
 	// Create reader
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return r, err
 	}
-	stream := cipher.NewOFB(block, iv[:])
+	stream := cipher.NewOFB(block, iv)
 	return cipher.StreamReader{S: stream, R: r}, nil
 }

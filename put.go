@@ -10,69 +10,188 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"encoding/binary"
+	"crypto/sha256"
+	"errors"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"strconv"
 )
 
-// If files is empty, stdin will be used
-func Put(w io.WriteCloser, conf Config, keyFunc KeyFunc, files []string) error {
+// Put uploads the files in files to https://transfer.sh
+func Put(config Config, files []string, output io.Writer, key [32]byte) error {
 
-	defer w.Close()
-
-	// Create header
-	var header Header
-
-	if len(files) > 1 {
-		header.AddFlag(TAR)
+	var b []byte
+	url, err := url.Parse(config.BaseURL)
+	if err != nil {
+		return err
 	}
 
-	if conf.Encrypt {
-		header.AddFlag(AES256)
-	}
-
-	if conf.Compress {
-		header.AddFlag(GZIP)
-	}
-
-	// Write header
-	binary.Write(w, binary.LittleEndian, header)
-
-	if header.HasFlag(AES256) {
-		w = wrapWriterAES256(w, keyFunc())
-		defer w.Close()
-	}
-
-	if header.HasFlag(GZIP) {
-		w = wrapWriterGzip(w)
-		defer w.Close()
-	}
-
-	if len(files) > 1 {
-		// Create tar archive if more than files are given
-		tw := tar.NewWriter(w)
-		defer tw.Close()
-
-		for _, f := range files {
-			err := add(tw, f)
-			if err != nil {
-				return err
-			}
+	if len(files) == 1 && files[0] == "-" {
+		if config.Tar {
+			return errors.New("tar makes no sense when reading from stdin")
 		}
-	} else if len(files) == 1 {
-		// Else read from single file
-		f, err := os.Open(files[0])
+
+		// Read from stdin
+		r, w := io.Pipe()
+		go writeFile(w, config.Compress, config.Encrypt, key, os.Stdin)
+		url.Path = path.Join(url.Path, "stdin")
+		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(output, string(b))
+		return nil
+	}
+
+	// Create a tar archive before uploading
+	if config.Tar {
+		r, w := io.Pipe()
+		go writeTar(w, config.Compress, config.Encrypt, key, files)
+		url.Path = path.Join(url.Path, "tar")
+		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(output, string(b))
+		return nil
+	}
+
+	// Upload all files in files
+	for _, file := range files {
+		f, err := os.Open(file)
 		if err != nil {
 			return err
 		}
 
-		_, err = io.Copy(w, f)
-		return err
-	} else {
-		// Else read from stdin
-		_, err := io.Copy(w, os.Stdin)
-		return err
+		r, w := io.Pipe()
+		go writeFile(w, config.Compress, config.Encrypt, key, f)
+		url.Path = path.Join(url.Path, filepath.Base(file))
+		b, err = upload(r, url.String(), config.MaxDays, config.MaxDownloads)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(output, string(b))
+	}
+	return nil
+}
+
+// Get the password and return the key
+func getKey(config Config, files []string) ([32]byte, error) {
+	var key [32]byte
+	if config.Encrypt {
+		// Read password from terminal or file
+		var password []byte
+		var err error
+		if config.PasswordFile == "" {
+			if len(files) == 1 && files[0] == "-" {
+				return key, errors.New("password file required when reading from stdin")
+			}
+			password, err = getPassword()
+		} else {
+			password, err = ioutil.ReadFile(config.PasswordFile)
+		}
+
+		if err != nil {
+			return key, err
+		}
+
+		// Create key by hashing the password
+		key = sha256.Sum256(password)
+	}
+	return key, nil
+}
+
+func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) {
+
+	// Create the request
+	req, err := http.NewRequest(http.MethodPut, url, r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set headers
+	req.Header.Set("User-Agent", useragent)
+	if maxdays != 0 {
+		req.Header.Set("Max-Days", strconv.Itoa(maxdays))
+	}
+	if maxdownloads != 0 {
+		req.Header.Set("Max-Downloads", strconv.Itoa(maxdownloads))
+	}
+
+	// Do request
+	res, err := http.DefaultClient.Do(req)
+	if err == nil && (res.StatusCode < 200 || res.StatusCode > 299) {
+		err = fmt.Errorf("Invalid http status %d %s", res.StatusCode, http.StatusText(res.StatusCode))
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	// Read body
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
+}
+
+func writeFile(w io.WriteCloser, compress, encrypt bool, key [32]byte, r io.Reader) error {
+	defer w.Close()
+
+	var err error
+
+	if encrypt {
+		w, err = wrapWriterAES256(w, key)
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+	}
+
+	if compress {
+		w = wrapWriterGzip(w)
+		defer w.Close()
+	}
+
+	_, err = io.Copy(w, r)
+	return err
+}
+
+func writeTar(w io.WriteCloser, compress, encrypt bool, key [32]byte, filenames []string) error {
+	defer w.Close()
+
+	var err error
+
+	if encrypt {
+		w, err = wrapWriterAES256(w, key)
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+	}
+
+	if compress {
+		w = wrapWriterGzip(w)
+		defer w.Close()
+	}
+
+	// Create tar archive
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+
+	for _, f := range filenames {
+		err = add(tw, f)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -82,13 +201,13 @@ func add(tw *tar.Writer, src string) error {
 	// walk path
 	return filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
 
-		handleError(err)
-
-		info(fi.Name())
+		print(fi.Name())
 
 		// create a new dir/file header
 		header, err := tar.FileInfoHeader(fi, fi.Name())
-		handleError(err)
+		if err != nil {
+			return err
+		}
 
 		// write the header
 		err = tw.WriteHeader(header)
@@ -119,7 +238,7 @@ func wrapWriterGzip(w io.WriteCloser) io.WriteCloser {
 	return gzip.NewWriter(w)
 }
 
-func wrapWriterAES256(w io.WriteCloser, key []byte) io.WriteCloser {
+func wrapWriterAES256(w io.WriteCloser, key [32]byte) (io.WriteCloser, error) {
 
 	// Make random IV and write it to the output buffer
 	iv := make([]byte, aes.BlockSize)
@@ -127,8 +246,10 @@ func wrapWriterAES256(w io.WriteCloser, key []byte) io.WriteCloser {
 	w.Write(iv)
 
 	// Create writer
-	block, err := aes.NewCipher(key)
-	handleError(err)
-	stream := cipher.NewOFB(block, iv[:])
-	return cipher.StreamWriter{S: stream, W: w}
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return w, err
+	}
+	stream := cipher.NewOFB(block, iv)
+	return cipher.StreamWriter{S: stream, W: w}, nil
 }

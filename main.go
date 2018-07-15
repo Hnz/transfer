@@ -38,7 +38,6 @@ type Config struct {
 
 func main() {
 	var config Config
-	var err error
 
 	flag.StringVar(&config.BaseURL, "b", "https://transfer.sh", "Base url.")
 	flag.BoolVar(&config.Compress, "z", false, "Compress the content using gzip.")
@@ -65,6 +64,9 @@ func main() {
 
 	// Get the password if needed
 	key, err := getKey(config, args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error retrieve password:", err)
+	}
 
 	if *get {
 		err = Get(config, args, key)

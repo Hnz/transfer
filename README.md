@@ -1,5 +1,5 @@
 
-# transfer.go [![GoDoc](https://godoc.org/github.com/Hnz/transfer?status.svg)](https://godoc.org/github.com/Hnz/transfer)
+# Transfer.go [![GoDoc](https://godoc.org/github.com/Hnz/transfer?status.svg)](https://godoc.org/github.com/Hnz/transfer) [![Go Report Card](https://goreportcard.com/badge/github.com/Hnz/transfer)](https://goreportcard.com/report/github.com/Hnz/transfer)
 
 **transfer.go** is a commandline utility to upload files to https://transfer.sh.
 

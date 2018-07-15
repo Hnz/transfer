@@ -24,9 +24,9 @@ Main features are:
     $ transfer -t -z LICENSE.md README.md
     https://transfer.sh/Qznmo/tar
 
-## Download and unpack the archive in <mydir>
+## Download and unpack the archive in `mydir`
     $ transfer.exe -g -t -z -d mydir https://transfer.sh/Qznmo/tar
 
-## Read from stdin and encrypt using <passwordfile>
+## Read from stdin and encrypt using `passwordfile`
     $ echo "secret message" | transfer -e -p paswordfile -
     https://transfer.sh/OaJRF/stdin

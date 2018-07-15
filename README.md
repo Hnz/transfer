@@ -11,11 +11,14 @@ Main features are:
 - Uses streams for maximum efficiency
 - Full Windows support
 
+# Examples
 
- # Examples
-
+## Upload LICENSE.md
     $ transfer LICENSE.md
     https://transfer.sh/9mzIi/LICENSE.md
+
+## Download LICENSE.md in the current directory
+    $ transfer -g https://transfer.sh/9mzIi/LICENSE.md
 
 ## Create a tar.gz archive
     $ transfer -t -z LICENSE.md README.md
@@ -24,7 +27,6 @@ Main features are:
 ## Download and unpack the archive in <mydir>
     $ transfer.exe -g -t -z -d mydir https://transfer.sh/Qznmo/tar
 
-## Read from stdin and encrypt
-    $ echo "secret message" | transfer -e -
-    Enter password:
+## Read from stdin and encrypt using <passwordfile>
+    $ echo "secret message" | transfer -e -p paswordfile -
     https://transfer.sh/OaJRF/stdin

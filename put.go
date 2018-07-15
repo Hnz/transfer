@@ -10,7 +10,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -79,32 +78,6 @@ func Put(config Config, files []string, output io.Writer, key [32]byte) error {
 		fmt.Fprintln(output, string(b))
 	}
 	return nil
-}
-
-// Get the password and return the key
-func getKey(config Config, files []string) ([32]byte, error) {
-	var key [32]byte
-	if config.Encrypt {
-		// Read password from terminal or file
-		var password []byte
-		var err error
-		if config.PasswordFile == "" {
-			if len(files) == 1 && files[0] == "-" {
-				return key, errors.New("password file required when reading from stdin")
-			}
-			password, err = getPassword()
-		} else {
-			password, err = ioutil.ReadFile(config.PasswordFile)
-		}
-
-		if err != nil {
-			return key, err
-		}
-
-		// Create key by hashing the password
-		key = sha256.Sum256(password)
-	}
-	return key, nil
 }
 
 func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) {

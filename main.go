@@ -6,8 +6,11 @@
 package main
 
 import (
+	"crypto/sha256"
+	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"syscall"
 
@@ -84,8 +87,12 @@ Options:
 	flag.PrintDefaults()
 	fmt.Fprintln(os.Stderr, `
 Examples:
+  # Upload LICENSE.md
   $ transfer LICENSE.md
   https://transfer.sh/9mzIi/LICENSE.md
+
+  # Download LICENSE.md in the current directory
+  $ transfer -g https://transfer.sh/9mzIi/LICENSE.md
 
   # Create a tar.gz archive
   $ transfer -t -z LICENSE.md README.md
@@ -94,9 +101,8 @@ Examples:
   # Download and unpack the archive in <mydir>
   $ transfer.exe -g -t -z -d mydir https://transfer.sh/Qznmo/tar
 
-  # Read from stdin and encrypt
-  $ echo "secret message" | transfer -e -
-  Enter password:
+  # Read from stdin and encrypt using <passwordfile>
+  $ echo "secret message" | transfer -e -p paswordfile -
   https://transfer.sh/OaJRF/stdin
 `)
 	os.Exit(2)
@@ -108,9 +114,36 @@ func print(s string) {
 	}
 }
 
+// Prompt the user for the password
 func getPassword() ([]byte, error) {
 	fmt.Print("Enter password: ")
 	password, err := terminal.ReadPassword(int(syscall.Stdin))
 	fmt.Println("")
 	return password, err
+}
+
+// Get the password and return the key
+func getKey(config Config, files []string) ([32]byte, error) {
+	var key [32]byte
+	if config.Encrypt {
+		// Read password from terminal or file
+		var password []byte
+		var err error
+		if config.PasswordFile == "" {
+			if len(files) == 1 && files[0] == "-" {
+				return key, errors.New("password file required when reading from stdin")
+			}
+			password, err = getPassword()
+		} else {
+			password, err = ioutil.ReadFile(config.PasswordFile)
+		}
+
+		if err != nil {
+			return key, err
+		}
+
+		// Create key by hashing the password
+		key = sha256.Sum256(password)
+	}
+	return key, nil
 }

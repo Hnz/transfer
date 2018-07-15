@@ -71,6 +71,7 @@ func TestUploadDownload(t *testing.T) {
 
 	// Download test file
 	r, err := download(s.URL + "/testfile")
+	handleError(t, err)
 	w, err := ioutil.TempFile("", "transfer_go")
 	handleError(t, err)
 

@@ -228,7 +228,7 @@ func compareFiles(t *testing.T, file1, file2 string) {
 	file2stat, err := os.Stat(file2)
 	handleError(t, err)
 
-	b := file1stat.Size() == file2stat.Size() && file1stat.Mode() == file2stat.Mode()
+	b := file1stat.Size() == file2stat.Size()
 	if !b {
 		t.Fatalf("File %s differs from file %s", file1, file2)
 	}

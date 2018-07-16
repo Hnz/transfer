@@ -56,12 +56,14 @@ func testServer(t *testing.T) (*httptest.Server, string) {
 
 func TestUploadDownload(t *testing.T) {
 
+	file := "LICENSE.md"
+
 	// Create test server
 	s, dir := testServer(t)
 	defer s.Close()
 
 	// Create test file
-	f, err := os.Open("LICENSE.md")
+	f, err := os.Open(file)
 	handleError(t, err)
 
 	// Upload test file
@@ -69,7 +71,7 @@ func TestUploadDownload(t *testing.T) {
 	handleError(t, err)
 
 	filename := filepath.Join(dir, "testfile")
-	compareFiles(t, "LICENSE.md", filename)
+	compareFiles(t, file, filename)
 
 	// Download test file
 	r, err := download(s.URL + "/testfile")
@@ -81,7 +83,7 @@ func TestUploadDownload(t *testing.T) {
 	handleError(t, err)
 
 	// Check if download file is the same as uploaded file
-	compareFiles(t, "LICENSE.md", w.Name())
+	compareFiles(t, file, w.Name())
 }
 
 func TestWriteFile(t *testing.T) {

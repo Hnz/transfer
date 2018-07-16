@@ -32,6 +32,7 @@ type Config struct {
 	PasswordFile string
 	MaxDownloads int
 	MaxDays      int
+	StdOut       bool
 	Tar          bool
 	Verbose      bool
 }
@@ -46,6 +47,7 @@ func main() {
 	flag.StringVar(&config.PasswordFile, "p", "", "File from which to load the encryption password.")
 	flag.IntVar(&config.MaxDays, "y", 0, "Remove the uploaded content after X days.")
 	flag.IntVar(&config.MaxDownloads, "m", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
+	flag.BoolVar(&config.StdOut, "s", false, "Write downloaded files to stdout.")
 	flag.BoolVar(&config.Tar, "t", false, "Create a tar archive.")
 	flag.BoolVar(&config.Verbose, "v", false, "Output log.")
 
@@ -87,7 +89,7 @@ Options:
 `
 	fmt.Fprintf(os.Stderr, u, os.Args[0])
 	flag.PrintDefaults()
-	fmt.Fprintln(os.Stderr, `
+	fmt.Fprint(os.Stderr, `
 Examples:
   # Upload LICENSE.md
   $ transfer LICENSE.md
@@ -106,6 +108,11 @@ Examples:
   # Read from stdin and encrypt using <passwordfile>
   $ echo "secret message" | transfer -e -p paswordfile -
   https://transfer.sh/OaJRF/stdin
+
+  # Download, decrypt, and write to stdout
+  $ transfer -g -s -e -p passwordfile https://transfer.sh/11CI2B/stdin
+  secret message
+
 `)
 	os.Exit(2)
 }

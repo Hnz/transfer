@@ -45,14 +45,17 @@ func Get(config Config, urls []string, key [32]byte) error {
 			return unpack(r, config.Dest)
 		}
 
-		out := filepath.Join(config.Dest, path.Base(url))
-		f, err := os.Create(out)
-		if err != nil {
-			return err
+		if config.StdOut {
+			_, err = io.Copy(os.Stdout, r)
+		} else {
+			out := filepath.Join(config.Dest, path.Base(url))
+			f, err := os.Create(out)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			_, err = io.Copy(f, r)
 		}
-		defer f.Close()
-
-		_, err = io.Copy(f, r)
 		return err
 	}
 

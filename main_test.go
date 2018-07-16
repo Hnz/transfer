@@ -6,6 +6,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -232,4 +235,40 @@ func compareFiles(t *testing.T, file1, file2 string) {
 	if !b {
 		t.Fatalf("File %s differs from file %s", file1, file2)
 	}
+}
+
+/*
+Try to replicate the openssl encryption in go
+
+$ openssl enc -aes-256-cbc -P -pass pass:test -S F6818CAE131872BD -md SHA256
+salt=F6818CAE131872BD
+key=109AE1C21965E57876731402D8DC5276A59B8782AEC354D7BF387A2DC77450F1
+iv =0899F50C65F644985C9CEAD9773AEEA5
+*/
+func TestOpenSSL(t *testing.T) {
+	pw := []byte("test")
+	key, err := hex.DecodeString("109AE1C21965E57876731402D8DC5276A59B8782AEC354D7BF387A2DC77450F1")
+	handleError(t, err)
+
+	iv, err := hex.DecodeString("0899F50C65F644985C9CEAD9773AEEA5")
+	handleError(t, err)
+
+	salt, err := hex.DecodeString("F6818CAE131872BD")
+	handleError(t, err)
+	newKey := sha256.Sum256(append(pw, salt...))
+
+	x := append(newKey[:], pw...)
+	x = append(x, salt...)
+	newIV := sha256.Sum256(x)
+
+	if hex.EncodeToString(key) != hex.EncodeToString(newKey[:]) {
+		t.Fatalf("%x does not equal %x", key, newKey)
+	}
+
+	if hex.EncodeToString(iv) != hex.EncodeToString(newIV[:aes.BlockSize]) {
+		t.Fatalf("%x does not equal %x", iv, newIV[:aes.BlockSize])
+	}
+
+	s := []byte{246, 129, 140, 174, 19, 24, 114, 189}
+	fmt.Println(salt, s)
 }

@@ -143,7 +143,7 @@ func TestGzip(t *testing.T) {
 
 	var r io.Reader
 	var w io.WriteCloser
-
+	var out []byte
 	in := []byte("A long time ago in a galaxy far, far away...\n")
 
 	f, err := ioutil.TempFile("", "transfer_go")
@@ -169,7 +169,8 @@ func TestGzip(t *testing.T) {
 	r, err = wrapReaderGzip(r)
 	handleError(t, err)
 
-	out, err := ioutil.ReadAll(r)
+	out, err = ioutil.ReadAll(r)
+	handleError(t, err)
 
 	if string(in) != string(out) {
 		log.Fatalf("Input is different from output.\nIn:  %s\nOut: %s\n", in, out)

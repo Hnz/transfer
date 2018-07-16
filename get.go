@@ -19,7 +19,7 @@ import (
 )
 
 // Get downloads files
-func Get(config Config, urls []string, key [32]byte) error {
+func Get(config Config, urls []string, key [32]byte, iv []byte) error {
 
 	for _, url := range urls {
 		r, err := download(url)
@@ -28,7 +28,7 @@ func Get(config Config, urls []string, key [32]byte) error {
 		}
 
 		if config.Encrypt {
-			r, err = wrapReaderAES256(r, key)
+			r, err = wrapReaderAES256(r, key, iv)
 			if err != nil {
 				return err
 			}
@@ -139,11 +139,7 @@ func wrapReaderGzip(r io.Reader) (io.Reader, error) {
 	return gzip.NewReader(r)
 }
 
-func wrapReaderAES256(r io.Reader, key [32]byte) (io.Reader, error) {
-	// First read the IV from the stream
-	iv := make([]byte, aes.BlockSize)
-	io.ReadFull(r, iv)
-
+func wrapReaderAES256(r io.Reader, key [32]byte, iv []byte) (io.Reader, error) {
 	// Create reader
 	block, err := aes.NewCipher(key[:])
 	if err != nil {

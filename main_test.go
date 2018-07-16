@@ -7,7 +7,6 @@ package main
 import (
 	"bytes"
 	"crypto/aes"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -87,6 +86,7 @@ func TestUploadDownload(t *testing.T) {
 
 func TestWriteFile(t *testing.T) {
 	var key [32]byte
+	var iv [16]byte
 	in := []byte("A long time ago in a galaxy far, far away...\n")
 
 	// Create test file
@@ -102,7 +102,7 @@ func TestWriteFile(t *testing.T) {
 	w, err := os.Create(filename)
 	handleError(t, err)
 
-	err = writeFile(w, true, true, key, r)
+	err = writeFile(w, true, true, key, iv[:], r)
 	handleError(t, err)
 }
 
@@ -111,6 +111,7 @@ func TestAes256(t *testing.T) {
 	var r io.Reader
 	var w io.WriteCloser
 	var key [32]byte
+	var iv [16]byte
 
 	in := []byte("A long time ago in a galaxy far, far away...\n")
 
@@ -119,7 +120,7 @@ func TestAes256(t *testing.T) {
 	handleError(t, err)
 	defer os.Remove(f.Name())
 
-	w, err = wrapWriterAES256(w, key)
+	w, err = wrapWriterAES256(w, key, iv[:])
 	handleError(t, err)
 
 	_, err = w.Write(in)
@@ -130,7 +131,7 @@ func TestAes256(t *testing.T) {
 	handleError(t, err)
 	defer f.Close()
 
-	r, err = wrapReaderAES256(r, key)
+	r, err = wrapReaderAES256(r, key, iv[:])
 	handleError(t, err)
 
 	out, err := ioutil.ReadAll(r)
@@ -183,6 +184,7 @@ func TestGzip(t *testing.T) {
 func TestSingleFile(t *testing.T) {
 
 	var key [32]byte
+	var iv [16]byte
 	var file = "LICENSE.md"
 	var files = []string{file}
 	var configs = []Config{
@@ -208,10 +210,10 @@ func TestSingleFile(t *testing.T) {
 		config.BaseURL = s.URL
 		config.Dest = outdir
 
-		err = Put(config, files, &buf, key)
+		err = Put(config, files, &buf, key, iv[:])
 		handleError(t, err)
 		url := strings.TrimRight(buf.String(), "\n")
-		err = Get(config, []string{url}, key)
+		err = Get(config, []string{url}, key, iv[:])
 		handleError(t, err)
 
 		// Check if download file is the same as uploaded file
@@ -253,22 +255,13 @@ func TestOpenSSL(t *testing.T) {
 	iv, err := hex.DecodeString("0899F50C65F644985C9CEAD9773AEEA5")
 	handleError(t, err)
 
-	salt, err := hex.DecodeString("F6818CAE131872BD")
-	handleError(t, err)
-	newKey := sha256.Sum256(append(pw, salt...))
+	outKey, outIV := passwordToKey(pw)
 
-	x := append(newKey[:], pw...)
-	x = append(x, salt...)
-	newIV := sha256.Sum256(x)
-
-	if hex.EncodeToString(key) != hex.EncodeToString(newKey[:]) {
-		t.Fatalf("%x does not equal %x", key, newKey)
+	if hex.EncodeToString(key) != hex.EncodeToString(outKey[:]) {
+		t.Fatalf("%x does not equal %x", key, outKey)
 	}
 
-	if hex.EncodeToString(iv) != hex.EncodeToString(newIV[:aes.BlockSize]) {
-		t.Fatalf("%x does not equal %x", iv, newIV[:aes.BlockSize])
+	if hex.EncodeToString(iv) != hex.EncodeToString(outIV[:aes.BlockSize]) {
+		t.Fatalf("%x does not equal %x", iv, outIV[:aes.BlockSize])
 	}
-
-	s := []byte{246, 129, 140, 174, 19, 24, 114, 189}
-	fmt.Println(salt, s)
 }

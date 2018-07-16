@@ -34,3 +34,5 @@ Main features are:
 ## Download, decrypt, and write to stdout
     $ transfer -g -s -e -p passwordfile https://transfer.sh/11CI2B/stdin
     secret message
+
+[Coverage](https://gocover.io/github.com/hnz/transfer)

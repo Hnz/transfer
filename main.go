@@ -134,7 +134,7 @@ func getPassword() ([]byte, error) {
 // Get the password and return the key
 func getKey(config Config, files []string) ([32]byte, []byte, error) {
 	var key [32]byte
-	var salt []byte
+	var iv []byte
 
 	if config.Encrypt {
 		// Read password from terminal or file
@@ -142,7 +142,7 @@ func getKey(config Config, files []string) ([32]byte, []byte, error) {
 		var err error
 		if config.PasswordFile == "" {
 			if len(files) == 1 && files[0] == "-" {
-				return key, salt, errors.New("password file required when reading from stdin")
+				return key, iv, errors.New("password file required when reading from stdin")
 			}
 			password, err = getPassword()
 		} else {
@@ -150,13 +150,13 @@ func getKey(config Config, files []string) ([32]byte, []byte, error) {
 		}
 
 		if err != nil {
-			return key, salt, err
+			return key, iv, err
 		}
 
 		// Create key by hashing the password
-		key, salt = passwordToKey(password)
+		key, iv = passwordToKey(password)
 	}
-	return key, salt, nil
+	return key, iv, nil
 }
 
 // Take a password and create a key and IV from it.

@@ -56,7 +56,10 @@ func Get(config Config, urls []string, key [32]byte) error {
 			defer f.Close()
 			_, err = io.Copy(f, r)
 		}
-		return err
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

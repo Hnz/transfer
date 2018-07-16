@@ -188,10 +188,14 @@ func TestSingleFile(t *testing.T) {
 	var file = "LICENSE.md"
 	var files = []string{file}
 	var configs = []Config{
-		{Compress: false, Encrypt: false},
-		{Compress: false, Encrypt: true},
-		{Compress: true, Encrypt: false},
-		{Compress: true, Encrypt: true},
+		{Compress: false, Encrypt: false, Tar: false},
+		{Compress: false, Encrypt: false, Tar: true},
+		{Compress: false, Encrypt: true, Tar: false},
+		{Compress: false, Encrypt: true, Tar: true},
+		{Compress: true, Encrypt: false, Tar: false},
+		{Compress: true, Encrypt: false, Tar: true},
+		{Compress: true, Encrypt: true, Tar: false},
+		{Compress: true, Encrypt: true, Tar: true},
 	}
 
 	for _, config := range configs {

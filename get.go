@@ -78,9 +78,13 @@ func download(url string) (io.Reader, error) {
 
 	res, err := http.DefaultClient.Do(req)
 	if err == nil && (res.StatusCode < 200 || res.StatusCode > 299) {
-		err = fmt.Errorf("Invalid http status %d %s", res.StatusCode, http.StatusText(res.StatusCode))
+		return nil, fmt.Errorf("Invalid http status %d %s", res.StatusCode, http.StatusText(res.StatusCode))
 	}
-	return res.Body, err
+
+	if err != nil {
+		return nil, err
+	}
+	return res.Body, nil
 }
 
 func unpack(r io.Reader, destdir string) error {

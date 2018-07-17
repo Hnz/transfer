@@ -92,18 +92,34 @@ func TestWriteFile(t *testing.T) {
 
 	// Create test file
 	dir, err := ioutil.TempDir("", "transfer_go")
+	defer os.RemoveAll(dir)
 	handleError(t, err)
-	filename := filepath.Join(dir, "in")
+	infile := filepath.Join(dir, "in")
 
-	ioutil.WriteFile(filename, in, 0600)
-
-	r, err := os.Open(filename)
+	err = ioutil.WriteFile(infile, in, 0600)
 	handleError(t, err)
 
-	w, err := os.Create(filename)
+	r, err := os.Open(infile)
+	handleError(t, err)
+
+	outfile := filepath.Join(dir, "out")
+	w, err := os.Create(outfile)
 	handleError(t, err)
 
 	err = writeFile(w, true, true, pw, r)
+	handleError(t, err)
+}
+
+func TestWriteTar(t *testing.T) {
+	pw := []byte("TestPassword123")
+	files := []string{"README.md", "LICENSE.md"}
+
+	// Create test file
+	f, err := ioutil.TempFile("", "transfer")
+	defer os.Remove(f.Name())
+	handleError(t, err)
+
+	err = writeTar(f, true, true, pw, files)
 	handleError(t, err)
 }
 

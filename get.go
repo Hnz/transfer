@@ -19,7 +19,7 @@ import (
 )
 
 // Get downloads files
-func Get(config Config, urls []string, key [32]byte, iv []byte) error {
+func Get(config Config, urls []string, password []byte) error {
 
 	for _, url := range urls {
 		r, err := download(url)
@@ -28,7 +28,7 @@ func Get(config Config, urls []string, key [32]byte, iv []byte) error {
 		}
 
 		if config.Encrypt {
-			r, err = wrapReaderAES256(r, key, iv)
+			r, err = wrapReaderAES256(r, password)
 			if err != nil {
 				return err
 			}
@@ -143,7 +143,23 @@ func wrapReaderGzip(r io.Reader) (io.Reader, error) {
 	return gzip.NewReader(r)
 }
 
-func wrapReaderAES256(r io.Reader, key [32]byte, iv []byte) (io.Reader, error) {
+func wrapReaderAES256(r io.Reader, password []byte) (io.Reader, error) {
+
+	// First read the salt from the stream
+	var header [16]byte
+	_, err := io.ReadFull(r, header[:])
+	if err != nil {
+		return r, err
+	}
+
+	// See http://justsolve.archiveteam.org/wiki/OpenSSL_salted_format
+	if string(header[:8]) != "Salted__" {
+		return r, errors.New("Stream does not start with 'Salted__'")
+	}
+
+	// Create key by hashing the password
+	key, iv := passwordToKey(password, header[8:])
+
 	// Create reader
 	block, err := aes.NewCipher(key[:])
 	if err != nil {

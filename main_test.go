@@ -87,8 +87,7 @@ func TestUploadDownload(t *testing.T) {
 }
 
 func TestWriteFile(t *testing.T) {
-	var key [32]byte
-	var iv [16]byte
+	pw := []byte("TestPassword123")
 	in := []byte("A long time ago in a galaxy far, far away...\n")
 
 	// Create test file
@@ -104,7 +103,7 @@ func TestWriteFile(t *testing.T) {
 	w, err := os.Create(filename)
 	handleError(t, err)
 
-	err = writeFile(w, true, true, key, iv[:], r)
+	err = writeFile(w, true, true, pw, r)
 	handleError(t, err)
 }
 
@@ -112,9 +111,8 @@ func TestAes256(t *testing.T) {
 
 	var r io.Reader
 	var w io.WriteCloser
-	var key [32]byte
-	var iv [16]byte
 
+	pw := []byte("TestPassword123")
 	in := []byte("A long time ago in a galaxy far, far away...\n")
 
 	f, err := ioutil.TempFile("", "transfer_go")
@@ -122,7 +120,7 @@ func TestAes256(t *testing.T) {
 	handleError(t, err)
 	defer os.Remove(f.Name())
 
-	w, err = wrapWriterAES256(w, key, iv[:])
+	w, err = wrapWriterAES256(w, pw)
 	handleError(t, err)
 
 	_, err = w.Write(in)
@@ -133,7 +131,7 @@ func TestAes256(t *testing.T) {
 	handleError(t, err)
 	defer f.Close()
 
-	r, err = wrapReaderAES256(r, key, iv[:])
+	r, err = wrapReaderAES256(r, pw)
 	handleError(t, err)
 
 	out, err := ioutil.ReadAll(r)
@@ -185,8 +183,6 @@ func TestGzip(t *testing.T) {
 
 func TestSingleFile(t *testing.T) {
 
-	var key [32]byte
-	var iv [16]byte
 	var file = "LICENSE.md"
 	var files = []string{file}
 	var configs = []Config{
@@ -199,6 +195,8 @@ func TestSingleFile(t *testing.T) {
 		{Compress: true, Encrypt: true, Tar: false},
 		{Compress: true, Encrypt: true, Tar: true},
 	}
+
+	pw := []byte("TestPassword123")
 
 	for _, config := range configs {
 		var buf bytes.Buffer
@@ -216,10 +214,10 @@ func TestSingleFile(t *testing.T) {
 		config.BaseURL = s.URL
 		config.Dest = outdir
 
-		err = Put(config, files, &buf, key, iv[:])
+		err = Put(config, files, &buf, pw)
 		handleError(t, err)
 		url := strings.TrimRight(buf.String(), "\n")
-		err = Get(config, []string{url}, key, iv[:])
+		err = Get(config, []string{url}, pw)
 		handleError(t, err)
 
 		// Check if download file is the same as uploaded file
@@ -254,6 +252,7 @@ key=109AE1C21965E57876731402D8DC5276A59B8782AEC354D7BF387A2DC77450F1
 iv =0899F50C65F644985C9CEAD9773AEEA5
 */
 func TestOpenSSL(t *testing.T) {
+	salt := []byte{246, 129, 140, 174, 19, 24, 114, 189}
 	pw := []byte("test")
 	key, err := hex.DecodeString("109AE1C21965E57876731402D8DC5276A59B8782AEC354D7BF387A2DC77450F1")
 	handleError(t, err)
@@ -261,7 +260,7 @@ func TestOpenSSL(t *testing.T) {
 	iv, err := hex.DecodeString("0899F50C65F644985C9CEAD9773AEEA5")
 	handleError(t, err)
 
-	outKey, outIV := passwordToKey(pw)
+	outKey, outIV := passwordToKey(pw, salt)
 
 	if hex.EncodeToString(key) != hex.EncodeToString(outKey[:]) {
 		t.Fatalf("%x does not equal %x", key, outKey)

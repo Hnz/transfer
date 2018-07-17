@@ -65,15 +65,15 @@ func main() {
 	}
 
 	// Get the password if needed
-	key, salt, err := getKey(config, args)
+	password, err := getPassword(config, args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error retrieve password:", err)
 	}
 
 	if *get {
-		err = Get(config, args, key, salt)
+		err = Get(config, args, password)
 	} else {
-		err = Put(config, args, os.Stdout, key, salt)
+		err = Put(config, args, os.Stdout, password)
 	}
 
 	if err != nil {
@@ -123,49 +123,39 @@ func print(s string) {
 	}
 }
 
-// Prompt the user for the password
-func getPassword() ([]byte, error) {
-	fmt.Print("Enter password: ")
-	password, err := terminal.ReadPassword(int(syscall.Stdin))
-	fmt.Println("")
-	return password, err
-}
-
 // Get the password and return the key
-func getKey(config Config, files []string) ([32]byte, []byte, error) {
-	var key [32]byte
-	var iv []byte
+func getPassword(config Config, files []string) ([]byte, error) {
 
 	if config.Encrypt {
 		// Read password from terminal or file
-		var password []byte
 		var err error
+		var password []byte
 		if config.PasswordFile == "" {
 			if len(files) == 1 && files[0] == "-" {
-				return key, iv, errors.New("password file required when reading from stdin")
+				return nil, errors.New("password file required when reading from stdin")
 			}
-			password, err = getPassword()
+
+			// Prompt for password
+			fmt.Print("Enter password: ")
+			password, err = terminal.ReadPassword(int(syscall.Stdin))
+			fmt.Println("")
 		} else {
 			password, err = ioutil.ReadFile(config.PasswordFile)
 		}
 
 		if err != nil {
-			return key, iv, err
+			return nil, err
 		}
 
-		// Create key by hashing the password
-		key, iv = passwordToKey(password)
+		return password, nil
 	}
-	return key, iv, nil
+	return nil, nil
 }
 
 // Take a password and create a key and IV from it.
 // This intentionally works the same way as OpenSSL.
 // See https://security.stackexchange.com/questions/29106/openssl-recover-key-and-iv-by-passphrase
-func passwordToKey(password []byte) ([32]byte, []byte) {
-
-	// The salt is hard-coded in OpenSSL. You could pass it to OpenSSL using "-S F6818CAE131872BD."
-	salt := []byte{246, 129, 140, 174, 19, 24, 114, 189}
+func passwordToKey(password []byte, salt []byte) ([32]byte, []byte) {
 
 	// The key is a sha256 hash of the password and the salt
 	key := sha256.Sum256(append(password, salt...))

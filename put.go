@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -22,7 +23,7 @@ import (
 )
 
 // Put uploads the files in files to https://transfer.sh
-func Put(config Config, files []string, output io.Writer, key [32]byte, iv []byte) error {
+func Put(config Config, files []string, output io.Writer, password []byte) error {
 
 	var b []byte
 	url, err := url.Parse(config.BaseURL)
@@ -37,7 +38,7 @@ func Put(config Config, files []string, output io.Writer, key [32]byte, iv []byt
 
 		// Read from stdin
 		r, w := io.Pipe()
-		go writeFile(w, config.Compress, config.Encrypt, key, iv, os.Stdin)
+		go writeFile(w, config.Compress, config.Encrypt, password, os.Stdin)
 		url.Path = path.Join(url.Path, "stdin")
 		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -50,7 +51,7 @@ func Put(config Config, files []string, output io.Writer, key [32]byte, iv []byt
 	// Create a tar archive before uploading
 	if config.Tar {
 		r, w := io.Pipe()
-		go writeTar(w, config.Compress, config.Encrypt, key, iv, files)
+		go writeTar(w, config.Compress, config.Encrypt, password, files)
 		url.Path = path.Join(url.Path, "tar")
 		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -68,7 +69,7 @@ func Put(config Config, files []string, output io.Writer, key [32]byte, iv []byt
 		}
 
 		r, w := io.Pipe()
-		go writeFile(w, config.Compress, config.Encrypt, key, iv, f)
+		go writeFile(w, config.Compress, config.Encrypt, password, f)
 		url.Path = path.Join(url.Path, filepath.Base(file))
 		b, err = upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -115,13 +116,13 @@ func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) 
 	return body, nil
 }
 
-func writeFile(w io.WriteCloser, compress, encrypt bool, key [32]byte, iv []byte, r io.Reader) error {
+func writeFile(w io.WriteCloser, compress, encrypt bool, password []byte, r io.Reader) error {
 	defer w.Close()
 
 	var err error
 
 	if encrypt {
-		w, err = wrapWriterAES256(w, key, iv)
+		w, err = wrapWriterAES256(w, password)
 		if err != nil {
 			return err
 		}
@@ -137,13 +138,13 @@ func writeFile(w io.WriteCloser, compress, encrypt bool, key [32]byte, iv []byte
 	return err
 }
 
-func writeTar(w io.WriteCloser, compress, encrypt bool, key [32]byte, iv []byte, filenames []string) error {
+func writeTar(w io.WriteCloser, compress, encrypt bool, password []byte, filenames []string) error {
 	defer w.Close()
 
 	var err error
 
 	if encrypt {
-		w, err = wrapWriterAES256(w, key, iv)
+		w, err = wrapWriterAES256(w, password)
 		if err != nil {
 			return err
 		}
@@ -210,7 +211,18 @@ func wrapWriterGzip(w io.WriteCloser) io.WriteCloser {
 	return gzip.NewWriter(w)
 }
 
-func wrapWriterAES256(w io.WriteCloser, key [32]byte, iv []byte) (io.WriteCloser, error) {
+func wrapWriterAES256(w io.WriteCloser, password []byte) (io.WriteCloser, error) {
+
+	header := []byte("Salted__")
+	w.Write(header)
+
+	// Create random salt
+	salt := make([]byte, 8)
+	io.ReadFull(rand.Reader, salt)
+	w.Write(salt[:])
+
+	// Create key by hashing the password
+	key, iv := passwordToKey(password, salt)
 
 	// Create writer
 	block, err := aes.NewCipher(key[:])

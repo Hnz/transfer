@@ -18,7 +18,7 @@ import (
 )
 
 // Version is the version of the application
-const Version = "0.4.0"
+const Version = "0.5.0"
 const useragent = "Transfer.go/" + Version
 
 var verbose bool

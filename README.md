@@ -1,5 +1,5 @@
 
-# Transfer.go [![GoDoc](https://godoc.org/github.com/Hnz/transfer?status.svg)](https://godoc.org/github.com/Hnz/transfer) [![Go Report Card](https://goreportcard.com/badge/github.com/Hnz/transfer)](https://goreportcard.com/report/github.com/Hnz/transfer)
+# Transfer.go [![GoDoc](https://godoc.org/github.com/Hnz/transfer?status.svg)](https://godoc.org/github.com/Hnz/transfer) [![Go Report Card](https://goreportcard.com/badge/github.com/Hnz/transfer)](https://goreportcard.com/report/github.com/Hnz/transfer) [![coverage](https://img.shields.io/codacy/coverage/c44df2d9c89a4809896914fd1a40bedd.svg)](https://gocover.io/github.com/hnz/transfer)
 
 **transfer.go** is a commandline utility to upload files to https://transfer.sh.
 
@@ -34,5 +34,3 @@ Main features are:
 ## Download, decrypt, and write to stdout
     $ transfer -g -s -e -p passwordfile https://transfer.sh/11CI2B/stdin
     secret message
-
-[Coverage](https://gocover.io/github.com/hnz/transfer)

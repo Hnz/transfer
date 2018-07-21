@@ -22,7 +22,7 @@ import (
 func Get(config Config, urls []string, password []byte) error {
 
 	for _, url := range urls {
-		r, err := download(url)
+		r, err := download(url, config.ProgressBar)
 		if err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func Get(config Config, urls []string, password []byte) error {
 	return nil
 }
 
-func download(url string) (io.Reader, error) {
+func download(url string, progressbar bool) (io.Reader, error) {
 
 	// Make http request
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -84,7 +84,11 @@ func download(url string) (io.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return progressBar(res.Body, res.ContentLength), nil
+
+	if progressbar {
+		return progressBar(res.Body, res.ContentLength), nil
+	}
+	return res.Body, nil
 }
 
 func unpack(r io.Reader, destdir string) error {

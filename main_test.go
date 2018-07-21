@@ -74,7 +74,7 @@ func TestUploadDownload(t *testing.T) {
 	compareFiles(t, file, filename)
 
 	// Download test file
-	r, err := download(s.URL + "/testfile")
+	r, err := download(s.URL+"/testfile", false)
 	handleError(t, err)
 	w, err := ioutil.TempFile("", "transfer_go")
 	handleError(t, err)

@@ -84,7 +84,7 @@ func download(url string) (io.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return res.Body, nil
+	return progressBar(res.Body, res.ContentLength), nil
 }
 
 func unpack(r io.Reader, destdir string) error {

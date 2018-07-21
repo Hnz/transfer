@@ -10,11 +10,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"syscall"
 
 	"golang.org/x/crypto/ssh/terminal"
+	pb "gopkg.in/cheggaaa/pb.v1"
 )
 
 // Version is the version of the application
@@ -32,6 +34,7 @@ type Config struct {
 	PasswordFile string
 	MaxDownloads int
 	MaxDays      int
+	ProgressBar  bool
 	StdOut       bool
 	Tar          bool
 	Verbose      bool
@@ -47,6 +50,7 @@ func main() {
 	flag.StringVar(&config.PasswordFile, "p", "", "File from which to load the encryption password.")
 	flag.IntVar(&config.MaxDays, "y", 0, "Remove the uploaded content after X days.")
 	flag.IntVar(&config.MaxDownloads, "m", 0, "Max amount of downloads to allow. Use 0 for unlimited.")
+	flag.BoolVar(&config.ProgressBar, "P", true, "Show progress bar.")
 	flag.BoolVar(&config.StdOut, "s", false, "Write downloaded files to stdout.")
 	flag.BoolVar(&config.Tar, "t", false, "Create a tar archive.")
 	flag.BoolVar(&config.Verbose, "v", false, "Output log.")
@@ -166,4 +170,13 @@ func passwordToKey(password []byte, salt []byte) ([32]byte, []byte) {
 	iv := sha256.Sum256(x)
 
 	return key, iv[:16]
+}
+
+func progressBar(r io.Reader, datalength int64) *pb.Reader {
+	// create and start bar
+	bar := pb.New(int(datalength)).SetUnits(pb.U_BYTES)
+	bar.Start()
+
+	// return the proxy reader
+	return bar.NewProxyReader(r)
 }

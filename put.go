@@ -149,7 +149,7 @@ func writeFile(w io.WriteCloser, compress, encrypt bool, password []byte, r io.R
 	}
 
 	if compress {
-		w = wrapWriterGzip(w)
+		w = gzip.NewWriter(w)
 		defer w.Close()
 	}
 
@@ -171,7 +171,7 @@ func writeTar(w io.WriteCloser, compress, encrypt, progressbar bool, password []
 	}
 
 	if compress {
-		w = wrapWriterGzip(w)
+		w = gzip.NewWriter(w)
 		defer w.Close()
 	}
 
@@ -231,11 +231,7 @@ func add(tw *tar.Writer, src string, progressbar bool) error {
 	})
 }
 
-func wrapWriterGzip(w io.WriteCloser) io.WriteCloser {
-	return gzip.NewWriter(w)
-}
-
-func wrapWriterAES256(w io.WriteCloser, password []byte) (io.WriteCloser, error) {
+func wrapWriterAES256(w io.Writer, password []byte) (io.WriteCloser, error) {
 
 	header := []byte("Salted__")
 	w.Write(header)
@@ -251,7 +247,7 @@ func wrapWriterAES256(w io.WriteCloser, password []byte) (io.WriteCloser, error)
 	// Create writer
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
-		return w, err
+		return nil, err
 	}
 	stream := cipher.NewOFB(block, iv)
 	return cipher.StreamWriter{S: stream, W: w}, nil

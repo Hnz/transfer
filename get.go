@@ -35,7 +35,7 @@ func Get(config Config, urls []string, password []byte) error {
 		}
 
 		if config.Compress {
-			r, err = wrapReaderGzip(r)
+			r, err = gzip.NewReader(r)
 			if err != nil {
 				return err
 			}
@@ -142,10 +142,6 @@ func unpack(r io.Reader, destdir string) error {
 			}
 		}
 	}
-}
-
-func wrapReaderGzip(r io.Reader) (io.Reader, error) {
-	return gzip.NewReader(r)
 }
 
 func wrapReaderAES256(r io.Reader, password []byte) (io.Reader, error) {

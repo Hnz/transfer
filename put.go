@@ -38,7 +38,7 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 
 		// Read from stdin
 		r, w := io.Pipe()
-		go writeFile(w, config.Compress, config.Encrypt, password, os.Stdin)
+		go writeFile(w, config.Compress, config.Encrypt, password, os.Stdin, "", 0)
 		url.Path = path.Join(url.Path, "stdin")
 		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -51,7 +51,7 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 	// Create a tar archive before uploading
 	if config.Tar {
 		r, w := io.Pipe()
-		go writeTar(w, config.Compress, config.Encrypt, password, files)
+		go writeTar(w, config.Compress, config.Encrypt, config.ProgressBar, password, files)
 		url.Path = path.Join(url.Path, "tar")
 		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -63,13 +63,27 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 
 	// Upload all files in files
 	for _, file := range files {
+		var datalength int64
+		var prefix string
+
 		f, err := os.Open(file)
 		if err != nil {
 			return err
 		}
 
 		r, w := io.Pipe()
-		go writeFile(w, config.Compress, config.Encrypt, password, f)
+
+		if config.ProgressBar {
+			fi, err := f.Stat()
+			if err != nil {
+				return err
+			}
+
+			datalength = fi.Size()
+			prefix = fi.Name()
+		}
+
+		go writeFile(w, config.Compress, config.Encrypt, password, f, prefix, datalength)
 		url.Path = path.Join(url.Path, filepath.Base(file))
 		b, err = upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -100,7 +114,7 @@ func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) 
 	// Do request
 	res, err := http.DefaultClient.Do(req)
 	if err == nil && (res.StatusCode < 200 || res.StatusCode > 299) {
-		err = fmt.Errorf("Invalid http status %d %s", res.StatusCode, http.StatusText(res.StatusCode))
+		return nil, fmt.Errorf("Invalid http status %d %s", res.StatusCode, http.StatusText(res.StatusCode))
 	}
 	if err != nil {
 		return nil, err
@@ -116,10 +130,15 @@ func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) 
 	return body, nil
 }
 
-func writeFile(w io.WriteCloser, compress, encrypt bool, password []byte, r io.Reader) error {
+func writeFile(w io.WriteCloser, compress, encrypt bool, password []byte, r io.Reader, prefix string, datalength int64) error {
 	defer w.Close()
 
 	var err error
+
+	if datalength > 0 {
+		w = wrapWriterProgressBar(w, prefix, datalength)
+		defer w.Close()
+	}
 
 	if encrypt {
 		w, err = wrapWriterAES256(w, password)
@@ -138,7 +157,7 @@ func writeFile(w io.WriteCloser, compress, encrypt bool, password []byte, r io.R
 	return err
 }
 
-func writeTar(w io.WriteCloser, compress, encrypt bool, password []byte, filenames []string) error {
+func writeTar(w io.WriteCloser, compress, encrypt, progressbar bool, password []byte, filenames []string) error {
 	defer w.Close()
 
 	var err error
@@ -161,7 +180,7 @@ func writeTar(w io.WriteCloser, compress, encrypt bool, password []byte, filenam
 	defer tw.Close()
 
 	for _, f := range filenames {
-		err = add(tw, f)
+		err = add(tw, f, progressbar)
 		if err != nil {
 			return err
 		}
@@ -170,11 +189,11 @@ func writeTar(w io.WriteCloser, compress, encrypt bool, password []byte, filenam
 	return nil
 }
 
-func add(tw *tar.Writer, src string) error {
+func add(tw *tar.Writer, src string, progressbar bool) error {
 	// walk path
 	return filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
 
-		print(fi.Name())
+		var r io.ReadCloser
 
 		// create a new dir/file header
 		header, err := tar.FileInfoHeader(fi, fi.Name())
@@ -194,14 +213,18 @@ func add(tw *tar.Writer, src string) error {
 		}
 
 		// open files for taring
-		f, err := os.Open(file)
-		defer f.Close()
+		r, err = os.Open(file)
+		defer r.Close()
 		if err != nil {
 			return err
 		}
 
+		if progressbar {
+			r = wrapReaderProgressBar(r, fi.Name(), fi.Size())
+		}
+
 		// copy file data into tar writer
-		_, err = io.Copy(tw, f)
+		_, err = io.Copy(tw, r)
 
 		return err
 	})

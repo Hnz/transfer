@@ -106,7 +106,7 @@ func TestWriteFile(t *testing.T) {
 	w, err := os.Create(outfile)
 	handleError(t, err)
 
-	err = writeFile(w, true, true, pw, r)
+	err = writeFile(w, true, true, pw, r, "", 0)
 	handleError(t, err)
 }
 
@@ -119,7 +119,7 @@ func TestWriteTar(t *testing.T) {
 	defer os.Remove(f.Name())
 	handleError(t, err)
 
-	err = writeTar(f, true, true, pw, files)
+	err = writeTar(f, true, true, false, pw, files)
 	handleError(t, err)
 }
 

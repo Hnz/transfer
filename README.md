@@ -5,11 +5,11 @@
 
 Main features are:
 
-- Automatically creates a tar archive when multiple files are selected
+- Upload multiple files as a tar archive
 - Can encrypt files using AES256
 - Can compress files using gzip
 - Uses streams for maximum efficiency
-- Full Windows support
+- Progress bar
 
 # Examples
 

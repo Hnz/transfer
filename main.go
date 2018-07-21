@@ -10,13 +10,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"syscall"
 
 	"golang.org/x/crypto/ssh/terminal"
-	pb "gopkg.in/cheggaaa/pb.v1"
 )
 
 // Version is the version of the application
@@ -170,13 +168,4 @@ func passwordToKey(password []byte, salt []byte) ([32]byte, []byte) {
 	iv := sha256.Sum256(x)
 
 	return key, iv[:16]
-}
-
-func progressBar(r io.Reader, datalength int64) *pb.Reader {
-	// create and start bar
-	bar := pb.New(int(datalength)).SetUnits(pb.U_BYTES)
-	bar.Start()
-
-	// return the proxy reader
-	return bar.NewProxyReader(r)
 }

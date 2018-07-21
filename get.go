@@ -86,7 +86,9 @@ func download(url string, progressbar bool) (io.Reader, error) {
 	}
 
 	if progressbar {
-		return progressBar(res.Body, res.ContentLength), nil
+		prefix := path.Base(url)
+		fmt.Println("PREFIX", prefix)
+		return wrapReaderProgressBar(res.Body, prefix, res.ContentLength), nil
 	}
 	return res.Body, nil
 }

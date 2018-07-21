@@ -221,6 +221,7 @@ func add(tw *tar.Writer, src string, progressbar bool) error {
 
 		if progressbar {
 			r = wrapReaderProgressBar(r, fi.Name(), fi.Size())
+			defer r.Close()
 		}
 
 		// copy file data into tar writer

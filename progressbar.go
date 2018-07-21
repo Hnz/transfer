@@ -25,7 +25,7 @@ func (p *progressBar) Close() error {
 	return nil
 }
 
-func wrapWriterProgressBar(w io.WriteCloser, prefix string, datalength int64) io.WriteCloser {
+func wrapWriterProgressBar(w io.WriteCloser, prefix string, datalength int64) *progressBar {
 
 	// create and start bar
 	bar := pb.New64(datalength).SetUnits(pb.U_BYTES).Prefix(prefix)
@@ -36,7 +36,7 @@ func wrapWriterProgressBar(w io.WriteCloser, prefix string, datalength int64) io
 
 func wrapReaderProgressBar(r io.Reader, prefix string, datalength int64) *pb.Reader {
 	// create and start bar
-	bar := pb.New(int(datalength)).SetUnits(pb.U_BYTES).Prefix(prefix)
+	bar := pb.New64(datalength).SetUnits(pb.U_BYTES).Prefix(prefix)
 	bar.Start()
 
 	// return the proxy reader

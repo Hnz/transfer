@@ -5,40 +5,78 @@
 package main
 
 import (
+	"fmt"
 	"io"
-
-	pb "gopkg.in/cheggaaa/pb.v1"
+	"os"
 )
 
-type progressBar struct {
-	pb *pb.ProgressBar
-	w  io.WriteCloser
+type progressBarReadCloser struct {
+	c      int64
+	l      int64
+	prefix string
+	o      io.WriteCloser
+	r      io.ReadCloser
 }
 
-func (p *progressBar) Write(b []byte) (n int, err error) {
-	p.pb.Write(b)
+type progressBarWriteCloser struct {
+	c      int64
+	l      int64
+	prefix string
+	o      io.WriteCloser
+	w      io.WriteCloser
+}
+
+func draw(c, l int64, o io.WriteCloser) {
+	//t := template.New("progress")
+	//t.Parse("{{.Prefix}}")
+	//t.Execute(o, )
+	fmt.Fprintf(o, "\r%d/%d", c, l)
+}
+
+func (p *progressBarReadCloser) Add(i int) {
+	p.c += int64(i)
+	draw(p.c, p.l, p.o)
+}
+
+func (p *progressBarWriteCloser) Add(i int) {
+	p.c += int64(i)
+	draw(p.c, p.l, p.o)
+}
+
+func (p *progressBarReadCloser) Close() error {
+	p.Finish()
+	return p.r.Close()
+}
+
+func (p *progressBarWriteCloser) Close() error {
+	p.Finish()
+	return p.w.Close()
+}
+
+func (p *progressBarReadCloser) Finish() {
+	fmt.Fprintf(p.o, "\r%d/%d Finised\n", p.l, p.l)
+}
+
+func (p *progressBarWriteCloser) Finish() {
+	fmt.Fprintf(p.o, "\r%d/%d Finised\n", p.l, p.l)
+}
+
+func (p *progressBarReadCloser) Read(b []byte) (int, error) {
+	p.Add(len(b))
+	return p.r.Read(b)
+}
+
+func (p *progressBarWriteCloser) Write(b []byte) (int, error) {
+	p.Add(len(b))
 	return p.w.Write(b)
 }
 
-func (p *progressBar) Close() error {
-	p.pb.Finish()
-	return nil
+func wrapWriterProgressBar(w io.WriteCloser, prefix string, datalength int64) *progressBarWriteCloser {
+
+	return &progressBarWriteCloser{c: 0, l: datalength, prefix: prefix, o: os.Stdout, w: w}
 }
 
-func wrapWriterProgressBar(w io.WriteCloser, prefix string, datalength int64) *progressBar {
+func wrapReaderProgressBar(r io.ReadCloser, prefix string, datalength int64) *progressBarReadCloser {
 
-	// create and start bar
-	bar := pb.New64(datalength).SetUnits(pb.U_BYTES).Prefix(prefix)
-	bar.Start()
-
-	return &progressBar{pb: bar, w: w}
-}
-
-func wrapReaderProgressBar(r io.Reader, prefix string, datalength int64) *pb.Reader {
-	// create and start bar
-	bar := pb.New64(datalength).SetUnits(pb.U_BYTES).Prefix(prefix)
-	bar.Start()
-
-	// return the proxy reader
-	return bar.NewProxyReader(r)
+	return &progressBarReadCloser{c: 0, l: datalength, prefix: prefix, o: os.Stdout, r: r}
 }

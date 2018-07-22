@@ -141,9 +141,11 @@ func writeFile(w io.Writer, compress, encrypt, checksum bool, password []byte, r
 	}
 
 	var err error
+	var h hash.Hash
 
 	if checksum {
-		w = wrapWriterSHA256(w)
+		h = sha256.New()
+		w = io.MultiWriter(w, h)
 	}
 
 	if datalength > 0 {
@@ -168,6 +170,11 @@ func writeFile(w io.Writer, compress, encrypt, checksum bool, password []byte, r
 	}
 
 	_, err = io.Copy(w, r)
+
+	// Print checksum
+	if checksum {
+		fmt.Printf("Checksum: %x\n", h.Sum(nil))
+	}
 
 	return err
 }

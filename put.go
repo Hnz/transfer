@@ -130,22 +130,23 @@ func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) 
 	return body, nil
 }
 
-func writeFile(w io.WriteCloser, compress, encrypt bool, password []byte, r io.Reader, prefix string, datalength int64) error {
+func writeFile(w io.WriteCloser, compress, encrypt bool, password []byte, r io.ReadCloser, prefix string, datalength int64) error {
+	defer r.Close()
 	defer w.Close()
 
 	var err error
 
 	if datalength > 0 {
-		w = wrapWriterProgressBar(w, prefix, datalength)
-		defer w.Close()
+		r = wrapReaderProgressBar(r, prefix, datalength)
+		defer r.Close()
 	}
 
 	if encrypt {
 		w, err = wrapWriterAES256(w, password)
+		defer w.Close()
 		if err != nil {
 			return err
 		}
-		defer w.Close()
 	}
 
 	if compress {

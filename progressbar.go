@@ -29,7 +29,7 @@ type progressBarWriteCloser struct {
 	w io.WriteCloser
 }
 
-func draw(p progressBar) {
+func (p *progressBar) Draw() {
 	p.Template.Execute(p.Output, p)
 	//fmt.Fprintf(o, "\r%d/%d", c, l)
 }
@@ -50,43 +50,42 @@ func (p *progressBarWriteCloser) Close() error {
 
 func (p *progressBarReadCloser) Read(b []byte) (int, error) {
 	p.Counter += int64(len(b))
-	draw(progressBar{p.Counter, p.Total, p.Prefix, p.Output, p.Template})
+	if p.Counter > p.Total {
+		p.Counter = p.Total
+	}
+
+	p.Draw()
 	return p.r.Read(b)
 }
 
 func (p *progressBarWriteCloser) Write(b []byte) (int, error) {
 	p.Counter += int64(len(b))
-	draw(progressBar{p.Counter, p.Total, p.Prefix, p.Output, p.Template})
+	p.Draw()
 	return p.w.Write(b)
 }
 
-func wrapWriterProgressBar(w io.WriteCloser, prefix string, datalength int64) *progressBarWriteCloser {
-	tmpl, err := defaultTemplate()
-	if err != nil {
-		panic(err)
-	}
+/*
+func wrapWriterProgressBar(w io.WriteCloser, prefix string, datalength int64) io.WriteCloser {
+	tmpl := defaultTemplate()
 	return &progressBarWriteCloser{progressBar{0, datalength, prefix, os.Stdout, tmpl}, w}
 }
-
-func wrapReaderProgressBar(r io.ReadCloser, prefix string, datalength int64) *progressBarReadCloser {
-	tmpl, err := defaultTemplate()
-	if err != nil {
-		panic(err)
-	}
+*/
+func wrapReaderProgressBar(r io.ReadCloser, prefix string, datalength int64) io.ReadCloser {
+	tmpl := defaultTemplate()
 	return &progressBarReadCloser{progressBar{0, datalength, prefix, os.Stdout, tmpl}, r}
 }
 
-func defaultTemplate() (*template.Template, error) {
+func defaultTemplate() *template.Template {
 
 	txt := "\r{{.Prefix}} {{.Counter}} / {{.Total}}  {{percentage .Counter .Total}}"
 
 	fm := template.FuncMap{
-		"divide": func(a, b int) int {
+		"bar": func(a, b int) int {
 			return a / b
 		},
-		"percentage": func(a, b int) string {
-			fmt.Println("Foo", a/b*100)
-			return string(a / b * 100)
+		"percentage": func(a, b int64) string {
+			return fmt.Sprintf("%6.2f%%", float64(a)/float64(b)*100)
 		}}
-	return template.New("writer").Funcs(fm).Parse(txt)
+
+	return template.Must(template.New("defaulttemplate").Funcs(fm).Parse(txt))
 }

@@ -185,22 +185,17 @@ func writeFile(w io.Writer, compress, encrypt, checksum bool, password []byte, r
 	return err
 }
 
-func writeTar(w io.WriteCloser, compress, encrypt, progressbar bool, password []byte, filenames []string) error {
-	defer w.Close()
+func writeTar(w io.Writer, compress, encrypt, progressbar bool, password []byte, filenames []string) error {
 
 	var err error
 
-	if encrypt {
-		w, err = wrapWriterAES256(w, password)
-		if err != nil {
-			return err
-		}
-		defer w.Close()
+	if c, ok := w.(io.Closer); ok {
+		defer c.Close()
 	}
 
-	if compress {
-		w = gzip.NewWriter(w)
-		defer w.Close()
+	w, err = wrapWriter(w, compress, encrypt, password)
+	if c, ok := w.(io.Closer); ok {
+		defer c.Close()
 	}
 
 	// Create tar archive

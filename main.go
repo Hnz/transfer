@@ -40,6 +40,14 @@ type Config struct {
 }
 
 func main() {
+	err := run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(2)
+	}
+}
+
+func run() error {
 	var config Config
 
 	flag.StringVar(&config.BaseURL, "b", "https://transfer.sh", "Base url.")
@@ -71,7 +79,7 @@ func main() {
 	// Get the password if needed
 	password, err := getPassword(config, args)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error retrieve password:", err)
+		return err
 	}
 
 	if *get {
@@ -80,9 +88,7 @@ func main() {
 		err = Put(config, args, os.Stdout, password)
 	}
 
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-	}
+	return err
 }
 
 func printHelp() {

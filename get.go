@@ -25,9 +25,11 @@ func Get(config Config, urls []string, password []byte) error {
 
 	for _, url := range urls {
 		var h hash.Hash
+		var r io.Reader
 		var w io.Writer
+		var err error
 
-		r, err := download(url, config.ProgressBar)
+		r, err = download(url, config.ProgressBar)
 		if err != nil {
 			return err
 		}
@@ -94,7 +96,7 @@ func Get(config Config, urls []string, password []byte) error {
 	return nil
 }
 
-func download(url string, progressbar bool) (io.Reader, error) {
+func download(url string, progressbar bool) (io.ReadCloser, error) {
 
 	// Make http request
 	req, err := http.NewRequest(http.MethodGet, url, nil)

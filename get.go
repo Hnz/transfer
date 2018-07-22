@@ -9,8 +9,10 @@ import (
 	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"net/http"
 	"os"
@@ -22,6 +24,9 @@ import (
 func Get(config Config, urls []string, password []byte) error {
 
 	for _, url := range urls {
+		var h hash.Hash
+		var w io.Writer
+
 		r, err := download(url, config.ProgressBar)
 		if err != nil {
 			return err
@@ -46,23 +51,43 @@ func Get(config Config, urls []string, password []byte) error {
 		}
 
 		if config.StdOut {
-			_, err = io.Copy(os.Stdout, r)
+			w = os.Stdout
 		} else {
 			out := filepath.Join(config.Dest, path.Base(url))
-			f, err := os.Create(out)
+			w, err = os.Create(out)
 			if err != nil {
 				return err
 			}
-			defer f.Close()
-			_, err = io.Copy(f, r)
 		}
 
+		// Create hash
+		if config.Checksum {
+			h = sha256.New()
+			w = io.MultiWriter(w, h)
+		}
+
+		_, err = io.Copy(w, r)
 		if err != nil {
 			return err
 		}
 
 		if c, ok := r.(io.Closer); ok {
-			return c.Close()
+			err = c.Close()
+			if err != nil {
+				return err
+			}
+		}
+
+		if c, ok := w.(io.Closer); ok {
+			err = c.Close()
+			if err != nil {
+				return err
+			}
+		}
+
+		// Create hash
+		if config.Checksum {
+			fmt.Printf("Checksum: %x\n", h.Sum(nil))
 		}
 	}
 

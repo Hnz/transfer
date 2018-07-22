@@ -195,6 +195,7 @@ func TestSingleFile(t *testing.T) {
 		err = Put(config, files, &buf, pw)
 		handleError(t, err)
 		url := strings.TrimRight(buf.String(), "\n")
+
 		err = Get(config, []string{url}, pw)
 		handleError(t, err)
 

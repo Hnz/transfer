@@ -27,7 +27,6 @@ import (
 // Put uploads the files in files to https://transfer.sh
 func Put(config Config, files []string, output io.Writer, password []byte) error {
 
-	var b []byte
 	url, err := url.Parse(config.BaseURL)
 	if err != nil {
 		return err
@@ -39,15 +38,7 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 		}
 
 		// Read from stdin
-		r, w := io.Pipe()
-		go writeFile(w, config.Compress, config.Encrypt, config.Checksum, password, os.Stdin, "", 0)
-		url.Path = path.Join(url.Path, "stdin")
-		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(output, string(b))
-		return nil
+		return copy(os.Stdin, url, config, "stdin", password, output)
 	}
 
 	// Create a tar archive before uploading
@@ -65,35 +56,26 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 
 	// Upload all files in files
 	for _, file := range files {
-		var datalength int64
-		var prefix string
-
 		f, err := os.Open(file)
 		if err != nil {
 			return err
 		}
 
-		r, w := io.Pipe()
-
-		if config.ProgressBar {
-			fi, err := f.Stat()
-			if err != nil {
-				return err
-			}
-
-			datalength = fi.Size()
-			prefix = fi.Name()
-		}
-
-		go writeFile(w, config.Compress, config.Encrypt, config.Checksum, password, f, prefix, datalength)
-		url.Path = path.Join(url.Path, filepath.Base(file))
-		b, err = upload(r, url.String(), config.MaxDays, config.MaxDownloads)
+		err = copy(f, url, config, filepath.Base(file), password, output)
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(output, string(b))
 	}
 	return nil
+}
+
+func copy(f io.ReadCloser, url *url.URL, config Config, name string, password []byte, output io.Writer) error {
+	r, w := io.Pipe()
+	go writeFile(w, config.Compress, config.Encrypt, config.Checksum, password, f, name, 0)
+	url.Path = path.Join(url.Path, name)
+	b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
+	fmt.Fprintln(output, string(b))
+	return err
 }
 
 func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) {

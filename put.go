@@ -132,6 +132,20 @@ func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) 
 	return body, nil
 }
 
+func wrapWriter(w io.Writer, compress, encrypt bool, password []byte) (io.Writer, error) {
+	var err error
+
+	if encrypt {
+		w, err = wrapWriterAES256(w, password)
+	}
+
+	if compress {
+		w = gzip.NewWriter(w)
+	}
+
+	return w, err
+}
+
 func writeFile(w io.Writer, compress, encrypt, checksum bool, password []byte, r io.ReadCloser, prefix string, datalength int64) error {
 	defer r.Close()
 
@@ -153,20 +167,12 @@ func writeFile(w io.Writer, compress, encrypt, checksum bool, password []byte, r
 		defer r.Close()
 	}
 
-	if encrypt {
-		w, err = wrapWriterAES256(w, password)
-		if err != nil {
-			return err
-		}
+	w, err = wrapWriter(w, compress, encrypt, password)
+	if c, ok := w.(io.Closer); ok {
+		defer c.Close()
 	}
-
-	if compress {
-		w = gzip.NewWriter(w)
-
-		// Make sure we close the w if it is a io.Closer, because gzip doesn't do this for you
-		if c, ok := w.(io.Closer); ok {
-			defer c.Close()
-		}
+	if err != nil {
+		return err
 	}
 
 	_, err = io.Copy(w, r)

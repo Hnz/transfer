@@ -44,7 +44,7 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 	// Create a tar archive before uploading
 	if config.Tar {
 		r, w := io.Pipe()
-		go writeTar(w, config.Compress, config.Encrypt, config.ProgressBar, password, files)
+		go writeTar(w, config.Checksum, config.Compress, config.Encrypt, config.ProgressBar, password, files)
 		url.Path = path.Join(url.Path, "tar")
 		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -114,8 +114,14 @@ func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) 
 	return body, nil
 }
 
-func wrapWriter(w io.Writer, compress, encrypt bool, password []byte) (io.Writer, error) {
+func wrapWriter(w io.Writer, checksum, compress, encrypt bool, password []byte) (io.Writer, hash.Hash, error) {
 	var err error
+	var h hash.Hash
+
+	if checksum {
+		h = sha256.New()
+		w = io.MultiWriter(w, h)
+	}
 
 	if encrypt {
 		w, err = wrapWriterAES256(w, password)
@@ -125,7 +131,7 @@ func wrapWriter(w io.Writer, compress, encrypt bool, password []byte) (io.Writer
 		w = gzip.NewWriter(w)
 	}
 
-	return w, err
+	return w, h, err
 }
 
 func writeFile(w io.Writer, compress, encrypt, checksum bool, password []byte, r io.ReadCloser, prefix string, datalength int64) error {
@@ -139,17 +145,12 @@ func writeFile(w io.Writer, compress, encrypt, checksum bool, password []byte, r
 	var err error
 	var h hash.Hash
 
-	if checksum {
-		h = sha256.New()
-		w = io.MultiWriter(w, h)
-	}
-
 	if datalength > 0 {
 		r = wrapReaderProgressBar(r, prefix, datalength)
 		defer r.Close()
 	}
 
-	w, err = wrapWriter(w, compress, encrypt, password)
+	w, h, err = wrapWriter(w, checksum, compress, encrypt, password)
 	if c, ok := w.(io.Closer); ok {
 		defer c.Close()
 	}
@@ -167,15 +168,16 @@ func writeFile(w io.Writer, compress, encrypt, checksum bool, password []byte, r
 	return err
 }
 
-func writeTar(w io.Writer, compress, encrypt, progressbar bool, password []byte, filenames []string) error {
+func writeTar(w io.Writer, checksum, compress, encrypt, progressbar bool, password []byte, filenames []string) error {
 
 	var err error
+	var h hash.Hash
 
 	if c, ok := w.(io.Closer); ok {
 		defer c.Close()
 	}
 
-	w, err = wrapWriter(w, compress, encrypt, password)
+	w, h, err = wrapWriter(w, checksum, compress, encrypt, password)
 	if c, ok := w.(io.Closer); ok {
 		defer c.Close()
 	}
@@ -189,6 +191,11 @@ func writeTar(w io.Writer, compress, encrypt, progressbar bool, password []byte,
 		if err != nil {
 			return err
 		}
+	}
+
+	// Print checksum
+	if checksum {
+		fmt.Printf("Checksum: %x\n", h.Sum(nil))
 	}
 
 	return nil

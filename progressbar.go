@@ -15,64 +15,75 @@ type progressBar struct {
 	Counter  int64
 	Total    int64
 	Prefix   string
-	Output   io.WriteCloser
+	Output   io.Writer
 	Template *template.Template
 }
 
-type progressBarReadCloser struct {
+type progressBarReader struct {
 	progressBar
-	r io.ReadCloser
+	r io.Reader
 }
 
-type progressBarWriteCloser struct {
+type progressBarWriter struct {
 	progressBar
-	w io.WriteCloser
+	w io.Writer
 }
 
-func (p *progressBar) Draw() {
+func (p progressBar) Draw() {
 	p.Template.Execute(p.Output, p)
 	//fmt.Fprintf(o, "\r%d/%d", c, l)
 }
 
-func (p *progressBar) Finish() {
+func (p progressBar) Finish() {
 	fmt.Fprint(p.Output, "\n")
 }
 
-func (p *progressBarReadCloser) Close() error {
+// Close closes the underlying Reader and returns its Close return value, if the Writer
+// is also an io.Closer. Otherwise it returns nil.
+func (p progressBarReader) Close() error {
 	p.Finish()
-	return p.r.Close()
+	if c, ok := p.r.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
 }
 
-func (p *progressBarWriteCloser) Close() error {
+// Close closes the underlying Writer and returns its Close return value, if the Writer
+// is also an io.Closer. Otherwise it returns nil.
+func (p progressBarWriter) Close() error {
 	p.Finish()
-	return p.w.Close()
+	if c, ok := p.w.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
 }
 
-func (p *progressBarReadCloser) Read(b []byte) (int, error) {
+func (p progressBarReader) Read(b []byte) (int, error) {
 	p.Counter += int64(len(b))
 	if p.Counter > p.Total {
 		p.Counter = p.Total
 	}
-
 	p.Draw()
 	return p.r.Read(b)
 }
 
-func (p *progressBarWriteCloser) Write(b []byte) (int, error) {
+func (p progressBarWriter) Write(b []byte) (int, error) {
 	p.Counter += int64(len(b))
+	if p.Counter > p.Total {
+		p.Counter = p.Total
+	}
 	p.Draw()
 	return p.w.Write(b)
 }
 
-/*
-func wrapWriterProgressBar(w io.WriteCloser, prefix string, datalength int64) io.WriteCloser {
+func wrapWriterProgressBar(w io.Writer, prefix string, datalength int64) progressBarWriter {
 	tmpl := defaultTemplate()
-	return &progressBarWriteCloser{progressBar{0, datalength, prefix, os.Stdout, tmpl}, w}
+	return progressBarWriter{progressBar{0, datalength, prefix, os.Stdout, tmpl}, w}
 }
-*/
-func wrapReaderProgressBar(r io.ReadCloser, prefix string, datalength int64) io.ReadCloser {
+
+func wrapReaderProgressBar(r io.Reader, prefix string, datalength int64) progressBarReader {
 	tmpl := defaultTemplate()
-	return &progressBarReadCloser{progressBar{0, datalength, prefix, os.Stdout, tmpl}, r}
+	return progressBarReader{progressBar{0, datalength, prefix, os.Stdout, tmpl}, r}
 }
 
 func defaultTemplate() *template.Template {

@@ -10,8 +10,10 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -38,7 +40,7 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 
 		// Read from stdin
 		r, w := io.Pipe()
-		go writeFile(w, config.Compress, config.Encrypt, password, os.Stdin, "", 0)
+		go writeFile(w, config.Compress, config.Encrypt, config.Checksum, password, os.Stdin, "", 0)
 		url.Path = path.Join(url.Path, "stdin")
 		b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -83,7 +85,7 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 			prefix = fi.Name()
 		}
 
-		go writeFile(w, config.Compress, config.Encrypt, password, f, prefix, datalength)
+		go writeFile(w, config.Compress, config.Encrypt, config.Checksum, password, f, prefix, datalength)
 		url.Path = path.Join(url.Path, filepath.Base(file))
 		b, err = upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 		if err != nil {
@@ -130,11 +132,16 @@ func upload(r io.Reader, url string, maxdays, maxdownloads int) ([]byte, error) 
 	return body, nil
 }
 
-func writeFile(w io.WriteCloser, compress, encrypt bool, password []byte, r io.ReadCloser, prefix string, datalength int64) error {
+func writeFile(w io.WriteCloser, compress, encrypt, checksum bool, password []byte, r io.ReadCloser, prefix string, datalength int64) error {
 	defer r.Close()
 	defer w.Close()
 
 	var err error
+
+	if checksum {
+		w = wrapWriterSHA256(w)
+		defer w.Close()
+	}
 
 	if datalength > 0 {
 		r = wrapReaderProgressBar(r, prefix, datalength)
@@ -252,4 +259,38 @@ func wrapWriterAES256(w io.Writer, password []byte) (io.WriteCloser, error) {
 	}
 	stream := cipher.NewOFB(block, iv)
 	return cipher.StreamWriter{S: stream, W: w}, nil
+}
+
+type hashWriter struct {
+	h hash.Hash
+	w io.Writer
+}
+
+// Close closes the underlying Writer and returns its Close return value, if the Writer
+// is also an io.Closer. Otherwise it returns nil.
+func (h hashWriter) Close() error {
+	checksum := h.h.Sum(nil)
+
+	fmt.Printf("Checksum: %x\n", checksum)
+
+	if c, ok := h.w.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
+}
+
+func (h hashWriter) Write(b []byte) (int, error) {
+	// Write to hash
+	n, err := h.h.Write(b)
+	if err != nil {
+		return n, err
+	}
+
+	// Write to writer
+	return h.w.Write(b)
+}
+
+func wrapWriterSHA256(w io.Writer) io.WriteCloser {
+
+	return hashWriter{h: sha256.New(), w: w}
 }

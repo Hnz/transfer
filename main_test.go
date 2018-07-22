@@ -106,7 +106,7 @@ func TestWriteFile(t *testing.T) {
 	w, err := os.Create(outfile)
 	handleError(t, err)
 
-	err = writeFile(w, true, true, pw, r, "", 0)
+	err = writeFile(w, true, true, true, pw, r, "", 0)
 	handleError(t, err)
 }
 

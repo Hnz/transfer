@@ -26,6 +26,7 @@ var verbose bool
 // Config specifies configuration options
 type Config struct {
 	BaseURL      string
+	Checksum     bool
 	Compress     bool
 	Dest         string
 	Encrypt      bool
@@ -42,6 +43,7 @@ func main() {
 	var config Config
 
 	flag.StringVar(&config.BaseURL, "b", "https://transfer.sh", "Base url.")
+	flag.BoolVar(&config.Checksum, "c", false, "Print sha256 checksum.")
 	flag.BoolVar(&config.Compress, "z", false, "Compress the content using gzip.")
 	flag.StringVar(&config.Dest, "d", "", "Directory in which to place the downloaded file.")
 	flag.BoolVar(&config.Encrypt, "e", false, "Encrypt the content using AES256.")

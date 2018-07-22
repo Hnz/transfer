@@ -60,6 +60,10 @@ func Get(config Config, urls []string, password []byte) error {
 		if err != nil {
 			return err
 		}
+
+		if c, ok := r.(io.Closer); ok {
+			return c.Close()
+		}
 	}
 
 	return nil

@@ -38,7 +38,7 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 		}
 
 		// Read from stdin
-		return copy(os.Stdin, url, config, "stdin", password, output)
+		return copy(os.Stdin, url, config, "stdin", password, output, 0)
 	}
 
 	// Create a tar archive before uploading
@@ -62,7 +62,12 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 			return err
 		}
 
-		err = copy(f, url, config, filepath.Base(file), password, output)
+		fi, err := f.Stat()
+		if err != nil {
+			return err
+		}
+
+		err = copy(f, url, config, filepath.Base(file), password, output, fi.Size())
 		if err != nil {
 			return err
 		}
@@ -70,9 +75,9 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 	return nil
 }
 
-func copy(f io.ReadCloser, url *url.URL, config Config, name string, password []byte, output io.Writer) error {
+func copy(f io.ReadCloser, url *url.URL, config Config, name string, password []byte, output io.Writer, datalength int64) error {
 	r, w := io.Pipe()
-	go writeFile(w, config.Compress, config.Encrypt, config.Checksum, password, f, name, 0)
+	go writeFile(w, config.Compress, config.Encrypt, config.Checksum, password, f, name, datalength)
 	url.Path = path.Join(url.Path, name)
 	b, err := upload(r, url.String(), config.MaxDays, config.MaxDownloads)
 	fmt.Fprintln(output, string(b))

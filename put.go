@@ -57,6 +57,7 @@ func Put(config Config, files []string, output io.Writer, password []byte) error
 	// Upload all files in files
 	for _, file := range files {
 		f, err := os.Open(file)
+		defer f.Close()
 		if err != nil {
 			return err
 		}

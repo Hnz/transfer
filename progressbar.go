@@ -40,7 +40,7 @@ func (p progressBar) Finish() {
 
 // Close closes the underlying Reader and returns its Close return value, if the Writer
 // is also an io.Closer. Otherwise it returns nil.
-func (p progressBarReader) Close() error {
+func (p *progressBarReader) Close() error {
 	p.Finish()
 	if c, ok := p.r.(io.Closer); ok {
 		return c.Close()
@@ -50,7 +50,7 @@ func (p progressBarReader) Close() error {
 
 // Close closes the underlying Writer and returns its Close return value, if the Writer
 // is also an io.Closer. Otherwise it returns nil.
-func (p progressBarWriter) Close() error {
+func (p *progressBarWriter) Close() error {
 	p.Finish()
 	if c, ok := p.w.(io.Closer); ok {
 		return c.Close()
@@ -58,7 +58,7 @@ func (p progressBarWriter) Close() error {
 	return nil
 }
 
-func (p progressBarReader) Read(b []byte) (int, error) {
+func (p *progressBarReader) Read(b []byte) (int, error) {
 	p.Counter += int64(len(b))
 	if p.Counter > p.Total {
 		p.Counter = p.Total
@@ -67,7 +67,7 @@ func (p progressBarReader) Read(b []byte) (int, error) {
 	return p.r.Read(b)
 }
 
-func (p progressBarWriter) Write(b []byte) (int, error) {
+func (p *progressBarWriter) Write(b []byte) (int, error) {
 	p.Counter += int64(len(b))
 	if p.Counter > p.Total {
 		p.Counter = p.Total
@@ -76,14 +76,14 @@ func (p progressBarWriter) Write(b []byte) (int, error) {
 	return p.w.Write(b)
 }
 
-func wrapWriterProgressBar(w io.Writer, prefix string, datalength int64) progressBarWriter {
+func wrapWriterProgressBar(w io.Writer, prefix string, datalength int64) *progressBarWriter {
 	tmpl := defaultTemplate()
-	return progressBarWriter{progressBar{0, datalength, prefix, os.Stdout, tmpl}, w}
+	return &progressBarWriter{progressBar{0, datalength, prefix, os.Stdout, tmpl}, w}
 }
 
-func wrapReaderProgressBar(r io.Reader, prefix string, datalength int64) progressBarReader {
+func wrapReaderProgressBar(r io.Reader, prefix string, datalength int64) *progressBarReader {
 	tmpl := defaultTemplate()
-	return progressBarReader{progressBar{0, datalength, prefix, os.Stdout, tmpl}, r}
+	return &progressBarReader{progressBar{0, datalength, prefix, os.Stdout, tmpl}, r}
 }
 
 func defaultTemplate() *template.Template {

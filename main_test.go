@@ -256,7 +256,6 @@ func TestProgressBarWriter(t *testing.T) {
 
 	datalength := 10000
 	var b bytes.Buffer
-	var c bytes.Buffer
 	w := wrapWriterProgressBar(&b, "Prefix", int64(datalength))
 
 	iterations := 10

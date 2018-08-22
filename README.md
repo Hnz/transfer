@@ -9,6 +9,7 @@ Main features are:
 - Can encrypt files using AES256
 - Can compress files using gzip
 - Uses streams for maximum efficiency
+- Full Windows support
 - Progress bar
 
 # Examples

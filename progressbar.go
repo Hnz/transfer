@@ -8,15 +8,19 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"text/template"
+	"strconv"
+	"strings"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type progressBar struct {
+	BarEmpty string
+	BarFull  string
 	Counter  int64
 	Total    int64
 	Prefix   string
 	Output   io.Writer
-	Template *template.Template
 }
 
 type progressBarReader struct {
@@ -29,9 +33,44 @@ type progressBarWriter struct {
 	w io.Writer
 }
 
+// Draw outputs
 func (p progressBar) Draw() {
-	p.Template.Execute(p.Output, p)
-	//fmt.Fprintf(o, "\r%d/%d", c, l)
+
+	// Get terminal width
+	fd := int(os.Stdout.Fd())
+	width, _, err := terminal.GetSize(fd)
+	if err != nil {
+		fmt.Println("Error getting terminal size:", err)
+	}
+
+	var percentage float64
+	if p.Counter == 0 {
+		percentage = 0
+	} else {
+		percentage = float64(p.Counter) / float64(p.Total)
+	}
+
+	prefixLength := len(p.Prefix)
+	totalLength := len(string(p.Total))
+	barLength := width - prefixLength - totalLength*2 - 10
+	barFullCount := int(float64(barLength) * percentage)
+	barEmptyCount := barLength - barFullCount
+	barFullString := strings.Repeat(p.BarFull, barFullCount)
+	barEmptyString := strings.Repeat(p.BarEmpty, barEmptyCount)
+
+	//fmt.Println(percentage, prefixLength, totalLength, barLength, barFullCount)
+
+	txt := "\r" +
+		p.Prefix +
+		" [" +
+		barFullString +
+		barEmptyString +
+		"] " +
+		strconv.FormatInt(p.Counter, 10) +
+		"/" +
+		strconv.FormatInt(p.Total, 10)
+
+	fmt.Fprint(p.Output, txt)
 }
 
 func (p progressBar) Finish() {
@@ -77,26 +116,9 @@ func (p *progressBarWriter) Write(b []byte) (int, error) {
 }
 
 func wrapWriterProgressBar(w io.Writer, prefix string, datalength int64) *progressBarWriter {
-	tmpl := defaultTemplate()
-	return &progressBarWriter{progressBar{0, datalength, prefix, os.Stdout, tmpl}, w}
+	return &progressBarWriter{progressBar{" ", "=", 0, datalength, prefix, os.Stdout}, w}
 }
 
 func wrapReaderProgressBar(r io.Reader, prefix string, datalength int64) *progressBarReader {
-	tmpl := defaultTemplate()
-	return &progressBarReader{progressBar{0, datalength, prefix, os.Stdout, tmpl}, r}
-}
-
-func defaultTemplate() *template.Template {
-
-	txt := "\r{{.Prefix}} {{.Counter}} / {{.Total}}  {{percentage .Counter .Total}}"
-
-	fm := template.FuncMap{
-		"bar": func(a, b int) int {
-			return a / b
-		},
-		"percentage": func(a, b int64) string {
-			return fmt.Sprintf("%6.2f%%", float64(a)/float64(b)*100)
-		}}
-
-	return template.Must(template.New("defaulttemplate").Funcs(fm).Parse(txt))
+	return &progressBarReader{progressBar{" ", "=", 0, datalength, prefix, os.Stdout}, r}
 }

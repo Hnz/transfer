@@ -35,3 +35,7 @@ Main features are:
 ## Download, decrypt, and write to stdout
     $ transfer -g -s -e -p passwordfile https://transfer.sh/11CI2B/stdin
     secret message
+
+## Decrypt a file using OpenSSL
+    $ openssl enc -d -aes-256-ofb -md SHA256 -in encryptedfile
+    secret message

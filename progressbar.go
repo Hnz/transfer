@@ -15,12 +15,12 @@ import (
 )
 
 type progressBar struct {
-	BarEmpty string
-	BarFull  string
-	Counter  int64
-	Total    int64
-	Prefix   string
-	Output   io.Writer
+	BarEmpty string    // Character to print for the empty part of the progress bar.
+	BarFull  string    // Character to print for the full part of the progress bar.
+	Counter  int64     // Tracks the progress made. Should not be greater than Total.
+	Total    int64     // Total number of ticks.
+	Prefix   string    // Text to put before the progress bar.
+	Output   io.Writer // Write output here. Should probably be os.Stdout.
 }
 
 type progressBarReader struct {
@@ -40,7 +40,8 @@ func (p progressBar) Draw() {
 	fd := int(os.Stdout.Fd())
 	width, _, err := terminal.GetSize(fd)
 	if err != nil {
-		fmt.Println("Error getting terminal size:", err)
+		// There seems to be no terminal. Don't draw anything.
+		return
 	}
 
 	var percentage float64
